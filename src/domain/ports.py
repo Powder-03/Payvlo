@@ -29,8 +29,31 @@ class ICatalogRepository(ABC):
         pass
 
     @abstractmethod
+    def list_merchants(self) -> List[MerchantProfile]:
+        """Fetch all registered merchants."""
+        pass
+
+    @abstractmethod
+    def save_products(self, products: List[Product]) -> int:
+        """Bulk upsert products into merchant catalog. Returns count of upserted items."""
+        pass
+
+    @abstractmethod
     def get_product(self, merchant_id: str, product_id: str) -> Optional[Product]:
         """Retrieve single product by ID."""
+        pass
+
+
+class ICatalogSyncProvider(ABC):
+    """Port for external merchant catalog synchronization engines (Shopify, Custom REST, Direct)."""
+
+    @abstractmethod
+    def sync_catalog(
+        self,
+        merchant: MerchantProfile,
+        raw_payload: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Product]:
+        """Fetch and normalize merchant catalog into standard Product domain entities."""
         pass
 
     @abstractmethod

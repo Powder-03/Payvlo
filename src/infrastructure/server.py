@@ -17,12 +17,17 @@ from ..adapters.redis_gatekeeper import RedisGatekeeperAdapter
 from ..adapters.razorpay_rails import RazorpayPaymentRailAdapter
 from ..adapters.mcp_controller import MCPController, create_mcp_router
 from ..adapters.uap_controller import create_uap_router
+from ..adapters.merchant_controller import create_merchant_router
+from ..adapters.catalog_sync_providers import CatalogSyncDispatcher
 from ..application.use_cases import (
     SearchCatalogUseCase,
     RequestQuoteUseCase,
     ExecuteCheckoutUseCase,
     InspectAuditUseCase,
     NegotiateIntentUseCase,
+    OnboardMerchantUseCase,
+    SyncMerchantCatalogUseCase,
+    ListMerchantsUseCase,
 )
 
 logging.basicConfig(
@@ -58,6 +63,9 @@ def create_application() -> FastAPI:
         is_sandbox=settings.RAZORPAY_SANDBOX_MODE,
     )
 
+    # 4. Initialize Catalog Sync Dispatcher (Shopify, Custom REST API, Direct)
+    sync_dispatcher = CatalogSyncDispatcher()
+
     # Active Merchant
     active_merchant_id = os.getenv(
         "ACTIVE_MERCHANT_ID", settings.ACTIVE_MERCHANT_ID
@@ -65,7 +73,7 @@ def create_application() -> FastAPI:
     active_merchant = catalog_repo.get_merchant(active_merchant_id)
     merchant_name = active_merchant.merchant_name if active_merchant else "Agentic Merchant"
 
-    # 4. Instantiate Use Cases
+    # 5. Instantiate Use Cases
     search_catalog_uc = SearchCatalogUseCase(
         catalog_repo=catalog_repo,
         default_merchant_id=active_merchant_id,
@@ -91,13 +99,29 @@ def create_application() -> FastAPI:
         request_quote_uc=request_quote_uc,
         default_merchant_id=active_merchant_id,
     )
+    onboard_merchant_uc = OnboardMerchantUseCase(
+        catalog_repo=catalog_repo,
+        audit_repo=audit_repo,
+        sync_provider=sync_dispatcher,
+        base_url=settings.PUBLIC_BASE_URL,
+    )
+    sync_catalog_uc = SyncMerchantCatalogUseCase(
+        catalog_repo=catalog_repo,
+        audit_repo=audit_repo,
+        sync_provider=sync_dispatcher,
+    )
+    list_merchants_uc = ListMerchantsUseCase(
+        catalog_repo=catalog_repo,
+    )
 
-    # 5. Instantiate MCP & UAP Controllers
+    # 6. Instantiate MCP, UAP, and Merchant Controllers
     mcp_controller = MCPController(
         search_catalog_uc=search_catalog_uc,
         request_quote_uc=request_quote_uc,
         execute_checkout_uc=execute_checkout_uc,
         inspect_audit_uc=inspect_audit_uc,
+        onboard_merchant_uc=onboard_merchant_uc,
+        sync_catalog_uc=sync_catalog_uc,
         merchant_name=merchant_name,
     )
 
@@ -109,21 +133,27 @@ def create_application() -> FastAPI:
         active_merchant_id=active_merchant_id,
         base_url=settings.PUBLIC_BASE_URL,
     )
+    merchant_router = create_merchant_router(
+        onboard_uc=onboard_merchant_uc,
+        sync_uc=sync_catalog_uc,
+        list_uc=list_merchants_uc,
+        catalog_repo=catalog_repo,
+    )
 
-    # 6. Lifespan context
+    # 7. Lifespan context
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         logger.info(
             f"🚀 Universal Agentic Commerce Node online for [{merchant_name}] ({active_merchant_id})."
         )
-        logger.info("Protocols enabled: Model Context Protocol (MCP/SSE) + Universal Agent Protocol (UAP/A2A).")
+        logger.info("Protocols enabled: Model Context Protocol (MCP/SSE) + Universal Agent Protocol (UAP/A2A) + Dynamic Merchant Ingestion.")
         yield
         logger.info("Commerce Node shutting down.")
 
-    # 7. Create FastAPI App
+    # 8. Create FastAPI App
     app = FastAPI(
         title="Universal Agentic Commerce Node",
-        description="Dual-Interface Gateway for Tool-Calling & Autonomous Peer Agents with Zero-Trust Spend Bounds & Razorpay Rails.",
+        description="Dual-Interface Gateway for Tool-Calling & Autonomous Peer Agents with Zero-Trust Spend Bounds, Dynamic Merchant Sync & Razorpay Rails.",
         version="1.0.0",
         lifespan=lifespan,
     )
@@ -137,9 +167,10 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount Protocol Routers
+    # Mount Protocol & Admin Routers
     app.include_router(mcp_router)
     app.include_router(uap_router)
+    app.include_router(merchant_router)
 
     # Public Discovery & Health Routes
     @app.get("/healthz")
@@ -236,6 +267,10 @@ def create_application() -> FastAPI:
     app.state.execute_checkout_uc = execute_checkout_uc
     app.state.inspect_audit_uc = inspect_audit_uc
     app.state.negotiate_intent_uc = negotiate_intent_uc
+    app.state.onboard_merchant_uc = onboard_merchant_uc
+    app.state.sync_catalog_uc = sync_catalog_uc
+    app.state.list_merchants_uc = list_merchants_uc
+    app.state.sync_dispatcher = sync_dispatcher
 
     return app
 

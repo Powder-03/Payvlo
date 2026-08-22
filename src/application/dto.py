@@ -250,3 +250,107 @@ class UAPTransactResponseDTO(BaseModel):
     currency: str
     audit_id: str
     message: str
+
+
+# ==========================================
+# Dynamic Merchant Onboarding & Sync DTOs
+# ==========================================
+class CatalogSyncConfigDTO(BaseModel):
+    provider: str = Field(
+        default="direct",
+        description="Sync engine: 'shopify', 'custom_api', 'direct', or 'manual'",
+    )
+    endpoint_url: Optional[str] = Field(
+        default=None,
+        description="Shopify store URL (e.g. 'https://my-brand.myshopify.com') or REST API URL",
+    )
+    access_token: Optional[str] = Field(
+        default=None,
+        description="Shopify Admin/Storefront Access Token or Custom API Bearer Token",
+    )
+    field_mapping: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Custom field mapping for REST API (e.g. {'title': 'name', 'price': 'mrp', 'sku': 'item_code'})",
+    )
+    auto_sync: bool = Field(default=False, description="Enable automatic periodic catalog sync")
+    sync_interval_hours: int = Field(default=24, ge=1, le=168)
+    last_synced_at: Optional[str] = None
+    sync_status: str = "IDLE"
+    error_message: Optional[str] = None
+
+
+class DirectProductInputDTO(BaseModel):
+    product_id: Optional[str] = None
+    sku: str = Field(..., description="Unique SKU code")
+    title: str = Field(..., description="Product title")
+    description: str = Field(default="")
+    price_inr: float = Field(..., gt=0.0, description="Price in INR")
+    inventory_count: int = Field(default=10, ge=0, description="Available stock")
+    category: str = Field(default="General")
+    max_discount_percentage: float = Field(default=0.0, ge=0.0, le=100.0)
+    tags: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MerchantOnboardInputDTO(BaseModel):
+    merchant_id: str = Field(..., min_length=2, max_length=64, description="Unique merchant slug (e.g. 'dominos_in')")
+    merchant_name: str = Field(..., min_length=2, description="Display brand name")
+    category: str = Field(..., description="Business category (e.g. 'Apparel', 'Food', 'Electronics')")
+    currency: str = Field(default="INR", max_length=10)
+    max_discount_percentage: float = Field(default=15.0, ge=0.0, le=100.0, description="Hard merchant discount ceiling")
+    per_tx_spend_cap: float = Field(default=10000.0, gt=0.0, description="Max single transaction limit in INR")
+    daily_merchant_spend_cap: float = Field(default=100000.0, gt=0.0, description="Max 24h daily spend across node in INR")
+    allowed_payment_methods: List[str] = Field(
+        default_factory=lambda: ["upi", "card", "netbanking"]
+    )
+    support_email: str = Field(default="support@merchant.com")
+    webhook_secret: Optional[str] = None
+    sync_config: Optional[CatalogSyncConfigDTO] = None
+    initial_products: Optional[List[DirectProductInputDTO]] = Field(
+        default=None, description="Optional initial list of products to seed immediately"
+    )
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MerchantProfileDTO(BaseModel):
+    merchant_id: str
+    merchant_name: str
+    category: str
+    currency: str
+    max_discount_percentage: float
+    per_tx_spend_cap: float
+    daily_merchant_spend_cap: float
+    allowed_payment_methods: List[str]
+    support_email: str
+    sync_config: Optional[CatalogSyncConfigDTO] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MerchantOnboardResponseDTO(BaseModel):
+    success: bool
+    merchant: MerchantProfileDTO
+    synced_products_count: int
+    agent_card_url: str
+    message: str
+
+
+class CatalogSyncTriggerDTO(BaseModel):
+    raw_payload: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="Optional raw JSON product list to sync directly"
+    )
+
+
+class CatalogSyncResponseDTO(BaseModel):
+    success: bool
+    merchant_id: str
+    synced_products_count: int
+    provider: str
+    sync_status: str
+    last_synced_at: str
+    error_message: Optional[str] = None
+    message: str
+
+
+class MerchantListResponseDTO(BaseModel):
+    total_merchants: int
+    merchants: List[MerchantProfileDTO]

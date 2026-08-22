@@ -15,6 +15,8 @@ from ..application.use_cases import (
     RequestQuoteUseCase,
     ExecuteCheckoutUseCase,
     InspectAuditUseCase,
+    OnboardMerchantUseCase,
+    SyncMerchantCatalogUseCase,
 )
 from ..application.dto import (
     CatalogSearchInputDTO,
@@ -23,6 +25,10 @@ from ..application.dto import (
     CheckoutInputDTO,
     AddressDTO,
     AuditInspectInputDTO,
+    MerchantOnboardInputDTO,
+    CatalogSyncConfigDTO,
+    DirectProductInputDTO,
+    CatalogSyncTriggerDTO,
 )
 from ..domain.exceptions import DomainError
 from ..domain.entities import current_utc_timestamp
@@ -39,12 +45,16 @@ class MCPController:
         request_quote_uc: RequestQuoteUseCase,
         execute_checkout_uc: ExecuteCheckoutUseCase,
         inspect_audit_uc: InspectAuditUseCase,
+        onboard_merchant_uc: Optional[OnboardMerchantUseCase] = None,
+        sync_catalog_uc: Optional[SyncMerchantCatalogUseCase] = None,
         merchant_name: str = "Universal Agentic Merchant",
     ):
         self.search_catalog_uc = search_catalog_uc
         self.request_quote_uc = request_quote_uc
         self.execute_checkout_uc = execute_checkout_uc
         self.inspect_audit_uc = inspect_audit_uc
+        self.onboard_merchant_uc = onboard_merchant_uc
+        self.sync_catalog_uc = sync_catalog_uc
         self.merchant_name = merchant_name
 
     # ==========================================
@@ -187,6 +197,86 @@ class MCPController:
             }
         except DomainError as de:
             return {"success": False, "error": de.to_dict()}
+    def onboard_merchant(
+        self,
+        merchant_id: str,
+        merchant_name: str,
+        category: str,
+        currency: str = "INR",
+        max_discount_percentage: float = 15.0,
+        per_tx_spend_cap: float = 10000.0,
+        daily_merchant_spend_cap: float = 100000.0,
+        sync_config: Optional[Dict[str, Any]] = None,
+        initial_products: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Tool: onboard_merchant
+
+        Dynamically onboard a new merchant (Shopify, Custom REST API, or Direct) onto the agentic node.
+        """
+        if not self.onboard_merchant_uc:
+            return {"success": False, "error": {"type": "FeatureDisabled", "message": "Onboarding use case not configured."}}
+        try:
+            sync_dto = None
+            if sync_config:
+                sync_dto = CatalogSyncConfigDTO(
+                    provider=sync_config.get("provider", "direct"),
+                    endpoint_url=sync_config.get("endpoint_url"),
+                    access_token=sync_config.get("access_token"),
+                    field_mapping=sync_config.get("field_mapping", {}),
+                    auto_sync=sync_config.get("auto_sync", False),
+                )
+
+            products_dto = None
+            if initial_products:
+                products_dto = [
+                    DirectProductInputDTO(
+                        sku=p["sku"],
+                        title=p["title"],
+                        description=p.get("description", ""),
+                        price_inr=float(p.get("price_inr", p.get("price", 0.0))),
+                        inventory_count=int(p.get("inventory_count", p.get("inventory", 10))),
+                        category=p.get("category", category),
+                        max_discount_percentage=float(p.get("max_discount_percentage", max_discount_percentage)),
+                        tags=p.get("tags", []),
+                    )
+                    for p in initial_products
+                ]
+
+            dto = MerchantOnboardInputDTO(
+                merchant_id=merchant_id,
+                merchant_name=merchant_name,
+                category=category,
+                currency=currency,
+                max_discount_percentage=max_discount_percentage,
+                per_tx_spend_cap=per_tx_spend_cap,
+                daily_merchant_spend_cap=daily_merchant_spend_cap,
+                sync_config=sync_dto,
+                initial_products=products_dto,
+            )
+            res = self.onboard_merchant_uc.execute(dto)
+            return {"success": True, "result": res.model_dump()}
+        except DomainError as de:
+            return {"success": False, "error": de.to_dict()}
+        except Exception as ex:
+            return {"success": False, "error": {"type": "InternalError", "message": str(ex)}}
+
+    def sync_merchant_catalog(
+        self,
+        merchant_id: str,
+        raw_payload: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Tool: sync_merchant_catalog
+
+        Trigger on-demand catalog sync from Shopify or Custom REST API for a merchant.
+        """
+        if not self.sync_catalog_uc:
+            return {"success": False, "error": {"type": "FeatureDisabled", "message": "Sync use case not configured."}}
+        try:
+            trigger_dto = CatalogSyncTriggerDTO(raw_payload=raw_payload) if raw_payload else None
+            res = self.sync_catalog_uc.execute(merchant_id, trigger_dto)
+            return {"success": True, "result": res.model_dump()}
+        except DomainError as de:
+            return {"success": False, "error": de.to_dict()}
         except Exception as ex:
             return {"success": False, "error": {"type": "InternalError", "message": str(ex)}}
 
@@ -274,6 +364,42 @@ class MCPController:
                     },
                 },
             },
+            {
+                "name": "onboard_merchant",
+                "description": "Dynamically onboard any merchant (Shopify, Custom REST API, or Direct) with custom spending guardrails.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["merchant_id", "merchant_name", "category"],
+                    "properties": {
+                        "merchant_id": {"type": "string", "description": "Unique merchant slug"},
+                        "merchant_name": {"type": "string", "description": "Brand / Store name"},
+                        "category": {"type": "string", "description": "Store category"},
+                        "currency": {"type": "string", "default": "INR"},
+                        "max_discount_percentage": {"type": "number", "default": 15.0},
+                        "per_tx_spend_cap": {"type": "number", "default": 10000.0},
+                        "daily_merchant_spend_cap": {"type": "number", "default": 100000.0},
+                        "sync_config": {
+                            "type": "object",
+                            "properties": {
+                                "provider": {"type": "string", "description": "'shopify', 'custom_api', or 'direct'"},
+                                "endpoint_url": {"type": "string"},
+                                "access_token": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                "name": "sync_merchant_catalog",
+                "description": "Trigger catalog synchronization from Shopify or external REST API for a registered merchant.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["merchant_id"],
+                    "properties": {
+                        "merchant_id": {"type": "string", "description": "Merchant ID to sync"},
+                    },
+                },
+            },
         ]
 
 
@@ -305,6 +431,10 @@ def create_mcp_router(controller: MCPController) -> APIRouter:
             return controller.execute_bounded_checkout(**arguments)
         elif tool_name == "inspect_audit_trail":
             return controller.inspect_audit_trail(**arguments)
+        elif tool_name == "onboard_merchant":
+            return controller.onboard_merchant(**arguments)
+        elif tool_name == "sync_merchant_catalog":
+            return controller.sync_merchant_catalog(**arguments)
         else:
             return {
                 "success": False,

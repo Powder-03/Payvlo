@@ -21,6 +21,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 from ..domain.entities import (
     MerchantProfile,
+    CatalogSyncConfig,
     Product,
     Address,
     QuoteItem,
@@ -51,6 +52,7 @@ class MerchantModel(Base):
     allowed_payment_methods_json = Column(Text, default="[]")
     support_email = Column(String(255), default="support@merchant.com")
     webhook_secret = Column(String(255), nullable=True)
+    sync_config_json = Column(Text, default="{}")
     metadata_json = Column(Text, default="{}")
 
 
@@ -134,6 +136,22 @@ class PostgresCatalogRepository(ICatalogRepository):
         self.session_factory = session_factory
 
     def _to_merchant_entity(self, m: MerchantModel) -> MerchantProfile:
+        sync_cfg = None
+        if m.sync_config_json and m.sync_config_json != "{}":
+            raw_sync = json.loads(m.sync_config_json)
+            sync_cfg = CatalogSyncConfig(
+                provider=raw_sync.get("provider", "direct"),
+                endpoint_url=raw_sync.get("endpoint_url"),
+                access_token_masked=raw_sync.get("access_token_masked"),
+                field_mapping=raw_sync.get("field_mapping", {}),
+                auto_sync=raw_sync.get("auto_sync", False),
+                sync_interval_hours=raw_sync.get("sync_interval_hours", 24),
+                last_synced_at=raw_sync.get("last_synced_at"),
+                sync_status=raw_sync.get("sync_status", "IDLE"),
+                error_message=raw_sync.get("error_message"),
+                raw_config=raw_sync.get("raw_config", {}),
+            )
+
         return MerchantProfile(
             merchant_id=m.merchant_id,
             merchant_name=m.merchant_name,
@@ -145,6 +163,7 @@ class PostgresCatalogRepository(ICatalogRepository):
             allowed_payment_methods=json.loads(m.allowed_payment_methods_json or "[]"),
             support_email=m.support_email,
             webhook_secret=m.webhook_secret,
+            sync_config=sync_cfg,
             metadata=json.loads(m.metadata_json or "{}"),
         )
 
@@ -168,6 +187,11 @@ class PostgresCatalogRepository(ICatalogRepository):
             m = session.query(MerchantModel).filter_by(merchant_id=merchant_id).first()
             return self._to_merchant_entity(m) if m else None
 
+    def list_merchants(self) -> List[MerchantProfile]:
+        with self.session_factory() as session:
+            merchants = session.query(MerchantModel).all()
+            return [self._to_merchant_entity(m) for m in merchants]
+
     def save_merchant(self, merchant: MerchantProfile) -> None:
         with self.session_factory() as session:
             existing = (
@@ -175,6 +199,7 @@ class PostgresCatalogRepository(ICatalogRepository):
                 .filter_by(merchant_id=merchant.merchant_id)
                 .first()
             )
+            sync_json = json.dumps(merchant.sync_config.to_dict() if merchant.sync_config else {})
             if existing:
                 existing.merchant_name = merchant.merchant_name
                 existing.category = merchant.category
@@ -187,6 +212,7 @@ class PostgresCatalogRepository(ICatalogRepository):
                 )
                 existing.support_email = merchant.support_email
                 existing.webhook_secret = merchant.webhook_secret
+                existing.sync_config_json = sync_json
                 existing.metadata_json = json.dumps(merchant.metadata)
             else:
                 m = MerchantModel(
@@ -202,10 +228,60 @@ class PostgresCatalogRepository(ICatalogRepository):
                     ),
                     support_email=merchant.support_email,
                     webhook_secret=merchant.webhook_secret,
+                    sync_config_json=sync_json,
                     metadata_json=json.dumps(merchant.metadata),
                 )
                 session.add(m)
             session.commit()
+
+    def save_products(self, products: List[Product]) -> int:
+        """Bulk upserts a list of Product entities into database."""
+        if not products:
+            return 0
+        saved_count = 0
+        with self.session_factory() as session:
+            for p in products:
+                existing = (
+                    session.query(ProductModel)
+                    .filter_by(merchant_id=p.merchant_id, product_id=p.product_id)
+                    .first()
+                )
+                if not existing:
+                    existing = (
+                        session.query(ProductModel)
+                        .filter_by(merchant_id=p.merchant_id, sku=p.sku)
+                        .first()
+                    )
+
+                tags_str = json.dumps(p.tags)
+                meta_str = json.dumps(p.metadata)
+                if existing:
+                    existing.title = p.title
+                    existing.description = p.description
+                    existing.price_inr = p.price_inr
+                    existing.inventory_count = p.inventory_count
+                    existing.category = p.category
+                    existing.max_discount_percentage = p.max_discount_percentage
+                    existing.tags_json = tags_str
+                    existing.metadata_json = meta_str
+                else:
+                    pm = ProductModel(
+                        product_id=p.product_id,
+                        merchant_id=p.merchant_id,
+                        sku=p.sku,
+                        title=p.title,
+                        description=p.description,
+                        price_inr=p.price_inr,
+                        inventory_count=p.inventory_count,
+                        category=p.category,
+                        max_discount_percentage=p.max_discount_percentage,
+                        tags_json=tags_str,
+                        metadata_json=meta_str,
+                    )
+                    session.add(pm)
+                saved_count += 1
+            session.commit()
+        return saved_count
 
     def get_product(self, merchant_id: str, product_id: str) -> Optional[Product]:
         with self.session_factory() as session:
