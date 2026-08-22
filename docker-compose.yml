@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # Universal Agentic Commerce Node Application
+  # ==========================================
+  commerce-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentic_commerce_node
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - ACTIVE_MERCHANT_ID=dominos_in
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres:5432/commerce_node_db
+      - REDIS_URL=redis://redis:6379/0
+      - RAZORPAY_KEY_ID=rzp_test_placeholder_key
+      - RAZORPAY_KEY_SECRET=rzp_test_placeholder_secret
+      - RAZORPAY_SANDBOX_MODE=true
+      - PORT=8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agentic_network
+
+  # ==========================================
+  # PostgreSQL Database (Ledger & Catalog)
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentic_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=commerce_node_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d commerce_node_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agentic_network
+
+  # ==========================================
+  # Redis Gatekeeper (Spend Caps & Idempotency)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: agentic_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - agentic_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  agentic_network:
+    driver: bridge

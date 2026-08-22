@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: universal-agentic-commerce-node
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.infrastructure.server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: ENVIRONMENT
+        value: production
+      - key: ACTIVE_MERCHANT_ID
+        value: dominos_in
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_SANDBOX_MODE
+        value: "true"
+      - key: QUOTE_VALIDITY_MINUTES
+        value: "15"
