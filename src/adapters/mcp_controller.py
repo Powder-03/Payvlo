@@ -25,6 +25,7 @@ from ..application.dto import (
     AuditInspectInputDTO,
 )
 from ..domain.exceptions import DomainError
+from ..domain.entities import current_utc_timestamp
 
 logger = logging.getLogger("MCPController")
 
@@ -332,7 +333,7 @@ def create_mcp_router(controller: MCPController) -> APIRouter:
             # Ping keep-alive
             ping_event = {
                 "event": "ping",
-                "data": json.dumps({"timestamp": current_utc_timestamp() if 'current_utc_timestamp' in globals() else ""}),
+                "data": json.dumps({"timestamp": current_utc_timestamp()}),
             }
             yield f"event: {ping_event['event']}\ndata: {ping_event['data']}\n\n"
 

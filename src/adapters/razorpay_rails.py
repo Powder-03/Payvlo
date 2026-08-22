@@ -145,7 +145,7 @@ class RazorpayPaymentRailAdapter(IPaymentRail):
 
         # Sandbox HMAC Verification
         msg = f"{order_id}|{payment_id}".encode("utf-8")
-        expected_sig = hmac.new(
+        expected_sig = hmac.HMAC(
             self.key_secret.encode("utf-8"), msg, hashlib.sha256
         ).hexdigest()
         return hmac.compare_digest(expected_sig, signature)

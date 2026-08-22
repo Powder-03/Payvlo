@@ -411,6 +411,22 @@ class PostgresCatalogRepository(ICatalogRepository):
             )
             for it in raw_items
         ]
+
+        # Reconstruct Address from persisted (masked) JSON if present
+        shipping_address = None
+        if om.shipping_address_json:
+            addr_data = json.loads(om.shipping_address_json)
+            shipping_address = Address(
+                line1=addr_data.get("masked_line1", "***"),
+                line2=None,
+                city=addr_data.get("city", ""),
+                state=addr_data.get("state", ""),
+                postal_code=addr_data.get("postal_code", ""),
+                country=addr_data.get("country", "IN"),
+                phone=addr_data.get("masked_phone"),
+                email=addr_data.get("masked_email"),
+            )
+
         return Order(
             order_id=om.order_id,
             idempotency_key=om.idempotency_key,
@@ -420,7 +436,7 @@ class PostgresCatalogRepository(ICatalogRepository):
             items=items,
             final_amount=om.final_amount,
             currency=om.currency,
-            shipping_address=None,
+            shipping_address=shipping_address,
             payment_rail_id=om.payment_rail_id,
             payment_status=om.payment_status,
             payment_link=om.payment_link,
