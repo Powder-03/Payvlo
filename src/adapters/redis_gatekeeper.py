@@ -58,11 +58,25 @@ LUA_IDEMPOTENCY_ACQUIRE = """
 -- ARGV[2]: ttl_seconds (e.g., 86400)
 
 local existing = redis.call('get', KEYS[1])
-if existing then
+local incoming_payload = ARGV[1]
+
+if incoming_payload and incoming_payload ~= "" then
+    -- Updating cached result after successful transaction
+    redis.call('setex', KEYS[1], tonumber(ARGV[2]), incoming_payload)
+    return {1, "UPDATED"}
+end
+
+if existing and existing ~= "" then
     return {0, existing}
 end
 
-redis.call('setex', KEYS[1], tonumber(ARGV[2]), ARGV[1])
+if existing then
+    -- Lock exists but payload not yet populated
+    return {0, ""}
+end
+
+-- New lock acquisition
+redis.call('setex', KEYS[1], tonumber(ARGV[2]), "")
 return {1, "ACQUIRED"}
 """
 
@@ -104,10 +118,10 @@ class RedisGatekeeperAdapter(IGatekeeper):
         if self.redis_client:
             try:
                 res = self.redis_client.eval(
-                    LUA_IDEMPOTENCY_ACQUIRE, 1, redis_key, payload, ttl_seconds
+                    LUA_IDEMPOTENCY_ACQUIRE, 1, redis_key, payload or "", ttl_seconds
                 )
                 is_new = bool(res[0] == 1)
-                cached = None if is_new else res[1]
+                cached = None if is_new or not res[1] or res[1] == "" else res[1]
                 return is_new, cached
             except Exception as e:
                 logger.warning(f"Redis idempotency error ({e}), falling back to in-memory lock.")
@@ -118,15 +132,17 @@ class RedisGatekeeperAdapter(IGatekeeper):
             if idempotency_key in self._memory_idempotency:
                 entry = self._memory_idempotency[idempotency_key]
                 if now < entry["expires_at"]:
-                    # If incoming payload is updating the cached payload (e.g. after order creation)
-                    if payload and not entry["payload"]:
+                    if payload and payload != "":
                         entry["payload"] = payload
-                    return False, entry["payload"]
+                        return True, None
+                    if entry["payload"] and entry["payload"] != "":
+                        return False, entry["payload"]
+                    return False, None
                 else:
                     del self._memory_idempotency[idempotency_key]
 
             self._memory_idempotency[idempotency_key] = {
-                "payload": payload,
+                "payload": payload or "",
                 "expires_at": now + ttl_seconds,
             }
             return True, None

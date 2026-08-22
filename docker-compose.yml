@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ==========================================
   # Universal Agentic Commerce Node Application

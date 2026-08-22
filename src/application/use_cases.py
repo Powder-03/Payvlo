@@ -345,6 +345,45 @@ class ExecuteCheckoutUseCase:
             except Exception:
                 pass
 
+        # 1.1 Secondary Idempotency check against persistent repository
+        existing_order = self.catalog_repo.get_order_by_idempotency(checkout_in.idempotency_key)
+        if existing_order:
+            self.audit_repo.record_audit(
+                AuditEntry(
+                    audit_id=f"aud_{uuid.uuid4().hex[:12]}",
+                    timestamp=current_utc_timestamp(),
+                    merchant_id=merchant_id,
+                    user_id_hash=user_id_hash,
+                    action="IDEMPOTENCY_REPLAY",
+                    idempotency_key=checkout_in.idempotency_key,
+                    quote_id=checkout_in.quote_id,
+                    order_id=existing_order.order_id,
+                    amount=existing_order.final_amount,
+                    currency=existing_order.currency,
+                    masked_pii_payload=shipping_entity.to_masked_dict() if shipping_entity else {},
+                    status="REPLAYED",
+                    explainability_notes=(
+                        f"Idempotent transaction replayed successfully from repository. "
+                        f"Existing Order ID: {existing_order.order_id}."
+                    ),
+                )
+            )
+            return CheckoutResponseDTO(
+                order_id=existing_order.order_id,
+                idempotency_key=existing_order.idempotency_key,
+                merchant_id=merchant_id,
+                quote_id=existing_order.quote_id,
+                final_amount=existing_order.final_amount,
+                currency=existing_order.currency,
+                payment_rail_id=existing_order.payment_rail_id,
+                payment_status=existing_order.payment_status,
+                payment_link=existing_order.payment_link,
+                audit_id=existing_order.audit_id,
+                is_replayed=True,
+                explainability_notes="Replay of previously processed transaction (Zero Double-Charge Guarantee).",
+                created_at=existing_order.created_at,
+            )
+
         # 2. Retrieve and Validate Quote
         quote = self.catalog_repo.get_quote(checkout_in.quote_id)
         if not quote:
