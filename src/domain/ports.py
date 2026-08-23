@@ -8,11 +8,32 @@ from typing import List, Optional, Dict, Any, Tuple
 from .entities import (
     Product,
     MerchantProfile,
+    CatalogSyncConfig,
+    User,
     Quote,
     Order,
     AuditEntry,
     PaymentRailResult,
 )
+
+
+class IUserRepository(ABC):
+    """Port for platform merchant user persistence."""
+
+    @abstractmethod
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """Fetch user by email address."""
+        pass
+
+    @abstractmethod
+    def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Fetch user by ID."""
+        pass
+
+    @abstractmethod
+    def save_user(self, user: User) -> None:
+        """Upsert user."""
+        pass
 
 
 class ICatalogRepository(ABC):
@@ -21,6 +42,11 @@ class ICatalogRepository(ABC):
     @abstractmethod
     def get_merchant(self, merchant_id: str) -> Optional[MerchantProfile]:
         """Fetch merchant profile and spending rules."""
+        pass
+
+    @abstractmethod
+    def get_merchant_by_owner(self, owner_user_id: str) -> Optional[MerchantProfile]:
+        """Fetch merchant profile associated with an account owner."""
         pass
 
     @abstractmethod
@@ -41,19 +67,6 @@ class ICatalogRepository(ABC):
     @abstractmethod
     def get_product(self, merchant_id: str, product_id: str) -> Optional[Product]:
         """Retrieve single product by ID."""
-        pass
-
-
-class ICatalogSyncProvider(ABC):
-    """Port for external merchant catalog synchronization engines (Shopify, Custom REST, Direct)."""
-
-    @abstractmethod
-    def sync_catalog(
-        self,
-        merchant: MerchantProfile,
-        raw_payload: Optional[List[Dict[str, Any]]] = None,
-    ) -> List[Product]:
-        """Fetch and normalize merchant catalog into standard Product domain entities."""
         pass
 
     @abstractmethod
@@ -100,6 +113,19 @@ class ICatalogSyncProvider(ABC):
     @abstractmethod
     def get_order_by_idempotency(self, idempotency_key: str) -> Optional[Order]:
         """Retrieve previously processed order by idempotency key."""
+        pass
+
+
+class ICatalogSyncProvider(ABC):
+    """Port for external merchant catalog synchronization engines (Shopify, Custom REST, Direct)."""
+
+    @abstractmethod
+    def sync_catalog(
+        self,
+        merchant: MerchantProfile,
+        raw_payload: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Product]:
+        """Fetch and normalize merchant catalog into standard Product domain entities."""
         pass
 
 

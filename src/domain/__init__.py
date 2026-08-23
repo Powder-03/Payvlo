@@ -3,6 +3,8 @@ from .entities import (
     Address,
     Product,
     MerchantProfile,
+    CatalogSyncConfig,
+    User,
     QuoteItem,
     Quote,
     PaymentRailResult,
@@ -26,12 +28,16 @@ from .ports import (
     IAuditRepository,
     IGatekeeper,
     IPaymentRail,
+    ICatalogSyncProvider,
+    IUserRepository,
 )
 
 __all__ = [
     "Address",
     "Product",
     "MerchantProfile",
+    "CatalogSyncConfig",
+    "User",
     "QuoteItem",
     "Quote",
     "PaymentRailResult",
@@ -51,4 +57,7 @@ __all__ = [
     "IAuditRepository",
     "IGatekeeper",
     "IPaymentRail",
+    "ICatalogSyncProvider",
+    "IUserRepository",
 ]
+

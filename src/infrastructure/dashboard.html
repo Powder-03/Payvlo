@@ -451,12 +451,13 @@
         <form id="storeSetupForm" onsubmit="handleApplyStore(event)">
           <div class="form-row">
             <div class="form-group">
-              <label>Merchant ID (Slug)</label>
-              <input type="text" id="storeId" class="form-control" placeholder="urban_threads" required>
+              <label>Store / Brand Name</label>
+              <input type="text" id="storeName" class="form-control" placeholder="e.g. Urban Style Fashion" oninput="autoGenerateSlug(this.value)" required>
             </div>
             <div class="form-group">
-              <label>Store / Brand Name</label>
-              <input type="text" id="storeName" class="form-control" placeholder="Urban Threads Fashion" required>
+              <label>Merchant ID (Unique Slug)</label>
+              <input type="text" id="storeId" class="form-control" placeholder="e.g. urban_style_fashion" required>
+              <small style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px;">Used by AI agents in agent.json & API calls</small>
             </div>
           </div>
 
@@ -496,7 +497,7 @@
 
           <div class="form-group" id="shopifyEndpointGroup">
             <label>Shopify Store URL</label>
-            <input type="url" id="shopifyUrl" class="form-control" placeholder="https://your-store.myshopify.com" required>
+            <input type="url" id="shopifyUrl" class="form-control" placeholder="https://your-store.myshopify.com">
           </div>
 
           <div class="form-group" id="shopifyTokenGroup">
@@ -589,6 +590,13 @@
   <script>
     let currentStoreData = null;
 
+    function autoGenerateSlug(val) {
+      const slugInput = document.getElementById("storeId");
+      if (slugInput) {
+        slugInput.value = val.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      }
+    }
+
     function showToast(msg, type = "success") {
       const t = document.getElementById("toast");
       t.innerText = msg;
@@ -606,8 +614,14 @@
 
     function toggleProviderInputs() {
       const p = document.getElementById("syncProvider").value;
-      document.getElementById("shopifyEndpointGroup").style.display = (p === 'shopify' || p === 'custom_api') ? 'block' : 'none';
-      document.getElementById("shopifyTokenGroup").style.display = (p === 'shopify' || p === 'custom_api') ? 'block' : 'none';
+      const urlInput = document.getElementById("shopifyUrl");
+      const isExternal = (p === 'shopify' || p === 'custom_api');
+      
+      document.getElementById("shopifyEndpointGroup").style.display = isExternal ? 'block' : 'none';
+      document.getElementById("shopifyTokenGroup").style.display = isExternal ? 'block' : 'none';
+      if (urlInput) {
+        urlInput.required = isExternal;
+      }
     }
 
     async function checkAuth() {
@@ -699,21 +713,63 @@
       e.preventDefault();
       const token = localStorage.getItem("payvlo_auth_token");
       const provider = document.getElementById("syncProvider").value;
+      const mId = document.getElementById("storeId").value.trim().toLowerCase();
+      const mName = document.getElementById("storeName").value.trim();
+      const mCategory = document.getElementById("storeCategory").value.trim() || "General";
+      const mCurrency = document.getElementById("storeCurrency").value;
+      const maxDiscount = parseFloat(document.getElementById("storeMaxDiscount").value) || 15.0;
+      const txCap = parseFloat(document.getElementById("storeTxCap").value) || 25000.0;
       
       const payload = {
-        merchant_id: document.getElementById("storeId").value.trim().toLowerCase(),
-        merchant_name: document.getElementById("storeName").value.trim(),
-        category: document.getElementById("storeCategory").value.trim(),
-        currency: document.getElementById("storeCurrency").value,
-        max_discount_percentage: parseFloat(document.getElementById("storeMaxDiscount").value),
-        per_tx_spend_cap: parseFloat(document.getElementById("storeTxCap").value),
+        merchant_id: mId,
+        merchant_name: mName,
+        category: mCategory,
+        currency: mCurrency,
+        max_discount_percentage: maxDiscount,
+        per_tx_spend_cap: txCap,
         sync_config: {
           provider: provider,
-          endpoint_url: document.getElementById("shopifyUrl").value.trim() || undefined,
-          access_token: document.getElementById("shopifyToken").value.trim() || undefined,
-          auto_sync: true
+          endpoint_url: (provider !== 'direct') ? document.getElementById("shopifyUrl").value.trim() : undefined,
+          access_token: (provider !== 'direct') ? document.getElementById("shopifyToken").value.trim() : undefined,
+          auto_sync: (provider !== 'direct')
         }
       };
+
+      // If direct product seed, attach starter catalog items
+      if (provider === 'direct') {
+        payload.initial_products = [
+          {
+            sku: `${mId.toUpperCase()}-SKU-001`,
+            title: `${mName} Premium Edition Item A`,
+            description: `High quality ${mCategory} item ready for agentic checkout.`,
+            price_inr: 1499.00,
+            inventory_count: 50,
+            category: mCategory,
+            max_discount_percentage: Math.min(maxDiscount, 10.0),
+            tags: [mCategory.toLowerCase(), "bestseller", "premium"]
+          },
+          {
+            sku: `${mId.toUpperCase()}-SKU-002`,
+            title: `${mName} Essential Pack Item B`,
+            description: `Everyday essential ${mCategory} item with instant availability.`,
+            price_inr: 899.00,
+            inventory_count: 100,
+            category: mCategory,
+            max_discount_percentage: Math.min(maxDiscount, 15.0),
+            tags: [mCategory.toLowerCase(), "essential", "standard"]
+          },
+          {
+            sku: `${mId.toUpperCase()}-SKU-003`,
+            title: `${mName} Pro Value Bundle C`,
+            description: `Curated bundle with priority delivery across India.`,
+            price_inr: 2999.00,
+            inventory_count: 30,
+            category: mCategory,
+            max_discount_percentage: Math.min(maxDiscount, 20.0),
+            tags: [mCategory.toLowerCase(), "bundle", "pro"]
+          }
+        ];
+      }
 
       try {
         const res = await fetch("/api/v1/merchants/apply", {
@@ -727,7 +783,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Store application failed");
 
-        showToast("Store activated and catalog synced!");
+        showToast("🎉 Store activated and catalog seeded!");
         checkAuth();
       } catch (err) {
         showToast(err.message, "error");

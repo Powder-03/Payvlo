@@ -2,6 +2,7 @@
 from .redis_gatekeeper import RedisGatekeeperAdapter
 from .postgres_repo import (
     Base,
+    UserModel,
     MerchantModel,
     ProductModel,
     QuoteModel,
@@ -9,14 +10,14 @@ from .postgres_repo import (
     AuditEntryModel,
     PostgresCatalogRepository,
     PostgresAuditRepository,
+    PostgresUserRepository,
 )
 from .razorpay_rails import RazorpayPaymentRailAdapter
-from .mcp_controller import MCPController, create_mcp_router
-from .uap_controller import create_uap_router
 
 __all__ = [
     "RedisGatekeeperAdapter",
     "Base",
+    "UserModel",
     "MerchantModel",
     "ProductModel",
     "QuoteModel",
@@ -24,8 +25,8 @@ __all__ = [
     "AuditEntryModel",
     "PostgresCatalogRepository",
     "PostgresAuditRepository",
+    "PostgresUserRepository",
     "RazorpayPaymentRailAdapter",
-    "MCPController",
-    "create_mcp_router",
-    "create_uap_router",
 ]
+
+

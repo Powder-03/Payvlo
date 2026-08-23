@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from fastapi.testclient import TestClient
 from src.infrastructure.server import create_application
 from src.domain.exceptions import SpendCapExceededError, OutOfStockError
+from tests.seed_test_data import seed_test_environment
 
 
 def run_e2e_suite():
@@ -24,6 +25,7 @@ def run_e2e_suite():
     print("🚀 STARTING UNIVERSAL AGENTIC COMMERCE NODE E2E TEST SUITE")
     print("=" * 80)
 
+    seed_test_environment()
     app = create_application()
     client = TestClient(app)
 
@@ -442,8 +444,66 @@ def run_e2e_suite():
     assert card_data["pricing_guardrails"]["max_discount_percentage"] == 18.0
     print(f"  ✅ Universal Agent Card verified for '{card_data['name']}'.")
 
+    # -------------------------------------------------------------------------
+    # TEST 15: Real-Time Shopify Webhook Ingestion (products/update)
+    # -------------------------------------------------------------------------
+    print("\n[TEST 15] Testing Instant Event-Driven Shopify Webhook Ingestion...")
+    webhook_product_payload = {
+        "id": 99881122,
+        "title": "Urban Style Limited Edition Bomber Jacket",
+        "body_html": "<p>Ultra-warm insulated tech bomber jacket.</p>",
+        "product_type": "Apparel & Jackets",
+        "tags": "outerwear, winter, max_discount:15",
+        "variants": [
+            {
+                "id": 9988112201,
+                "sku": "URBAN-BOMBER-BLK-M",
+                "title": "Black / M",
+                "price": "4999.00",
+                "inventory_quantity": 25,
+            }
+        ],
+    }
+    wh_resp = client.post(
+        "/api/v1/webhooks/shopify/urban_style_app",
+        json=webhook_product_payload,
+        headers={
+            "X-Shopify-Topic": "products/update",
+            "X-Shopify-Hmac-Sha256": "test_mock_hmac",
+        },
+    )
+    assert wh_resp.status_code == 200, f"Webhook failed: {wh_resp.text}"
+    wh_data = wh_resp.json()
+    assert wh_data["success"] is True
+    assert wh_data["status"] == "processed"
+    assert wh_data["updated_products_count"] == 1
+
+    # Verify that product is instantly live in database & discoverable
+    wh_search = mcp_ctrl.search_store_catalog(query="Bomber", merchant_id="urban_style_app")
+    assert wh_search["success"] is True
+    assert len(wh_search["products"]) >= 1
+    assert wh_search["products"][0]["sku"] == "URBAN-BOMBER-BLK-M"
+    assert wh_search["products"][0]["price_inr"] == 4999.00
+    print(f"  ✅ Real-time webhook processed instantly! Product '{wh_search['products'][0]['title']}' (₹{wh_search['products'][0]['price_inr']}) is live.")
+
+    # -------------------------------------------------------------------------
+    # TEST 16: Background Async Scheduler Cycle Verification
+    # -------------------------------------------------------------------------
+    print("\n[TEST 16] Verifying Background Auto-Sync Scheduler Cycle...")
+    import asyncio
+    from src.infrastructure.scheduler import CatalogSyncScheduler
+
+    test_scheduler = CatalogSyncScheduler(
+        catalog_repo=app.state.catalog_repo,
+        sync_uc=app.state.sync_catalog_uc,
+        check_interval_seconds=1,
+    )
+    # Run a direct cycle to verify set-and-forget background execution
+    asyncio.run(test_scheduler.run_sync_cycle())
+    print("  ✅ Background scheduler cycle executed across all auto_sync stores without errors.")
+
     print("\n" + "=" * 80)
-    print("🎉 ALL 14 E2E INTEGRATION, DYNAMIC ONBOARDING, SAAS AUTH & PROTOCOL TESTS PASSED!")
+    print("🎉 ALL 16 E2E INTEGRATION, SAAS AUTH, WEBHOOKS & SCHEDULER TESTS PASSED!")
     print("=" * 80)
 
 
@@ -454,4 +514,5 @@ def test_e2e_flow():
 
 if __name__ == "__main__":
     run_e2e_suite()
+
 

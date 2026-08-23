@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 
 from .config import settings
-from .database import init_database, seed_merchants_and_catalog
+from .database import init_database
 from ..adapters.redis_gatekeeper import RedisGatekeeperAdapter
 from ..adapters.razorpay_rails import RazorpayPaymentRailAdapter
 from ..adapters.mcp_controller import MCPController, create_mcp_router
@@ -32,6 +32,9 @@ from ..application.use_cases import (
     ListMerchantsUseCase,
 )
 
+from ..adapters.webhook_controller import create_webhook_router
+from .scheduler import CatalogSyncScheduler
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -43,11 +46,7 @@ def create_application() -> FastAPI:
     """Dependency Injection & Application Assembler."""
     # 1. Initialize Database & Repositories
     db_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
-    engine, session_factory, catalog_repo, audit_repo = init_database(db_url)
-    user_repo = PostgresUserRepository(session_factory)
-
-    # Run Seeder
-    seed_merchants_and_catalog(catalog_repo)
+    engine, session_factory, catalog_repo, audit_repo, user_repo = init_database(db_url)
 
     # 2. Initialize Redis Gatekeeper (Upstash or In-Memory)
     redis_url = (
@@ -117,7 +116,14 @@ def create_application() -> FastAPI:
         catalog_repo=catalog_repo,
     )
 
-    # 6. Instantiate MCP, UAP, Merchant, and Auth Controllers
+    # 6. Background Async Auto-Sync Scheduler
+    scheduler = CatalogSyncScheduler(
+        catalog_repo=catalog_repo,
+        sync_uc=sync_catalog_uc,
+        check_interval_seconds=300,  # 5 minute cycle
+    )
+
+    # 7. Instantiate MCP, UAP, Merchant, Webhook, and Auth Controllers
     mcp_controller = MCPController(
         search_catalog_uc=search_catalog_uc,
         request_quote_uc=request_quote_uc,
@@ -148,21 +154,24 @@ def create_application() -> FastAPI:
         user_repo=user_repo,
         base_url=settings.PUBLIC_BASE_URL,
     )
+    webhook_router = create_webhook_router(catalog_repo=catalog_repo)
 
-    # 7. Lifespan context
+    # 8. Lifespan context
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         logger.info(
             f"🚀 Universal Agentic Commerce Node & SaaS Portal online for [{merchant_name}] ({active_merchant_id})."
         )
-        logger.info("Protocols enabled: Model Context Protocol (MCP/SSE) + Universal Agent Protocol (UAP/A2A) + Merchant SaaS Auth.")
+        logger.info("Protocols enabled: Model Context Protocol (MCP/SSE) + Universal Agent Protocol (UAP/A2A) + Webhooks + Background Scheduler.")
+        scheduler.start()
         yield
+        scheduler.stop()
         logger.info("Commerce Node shutting down.")
 
-    # 8. Create FastAPI App
+    # 9. Create FastAPI App
     app = FastAPI(
         title="Universal Agentic Commerce Node & Merchant Portal",
-        description="Dual-Interface Gateway for Tool-Calling & Autonomous Peer Agents with Zero-Trust Spend Bounds, Merchant SaaS Auth & Razorpay Rails.",
+        description="Dual-Interface Gateway for Tool-Calling & Autonomous Peer Agents with Zero-Trust Spend Bounds, Real-Time Webhooks & Background Scheduler.",
         version="1.0.0",
         lifespan=lifespan,
     )
@@ -176,11 +185,12 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount Protocol, Auth & Admin Routers
+    # Mount Protocol, Auth, Webhook & Admin Routers
     app.include_router(mcp_router)
     app.include_router(uap_router)
     app.include_router(auth_router)
     app.include_router(merchant_router)
+    app.include_router(webhook_router)
 
     # Public Discovery & Health Routes
     @app.get("/healthz")

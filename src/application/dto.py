@@ -197,6 +197,7 @@ class UAPAgentCardDTO(BaseModel):
     merchant_id: str
     merchant_name: str
     category: str
+    currency: str = "INR"
     capabilities: List[str]
     endpoints: Dict[str, str]
     pricing_guardrails: Dict[str, Any]

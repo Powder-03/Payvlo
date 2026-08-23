@@ -60,6 +60,7 @@ def create_uap_router(
             merchant_id=merchant.merchant_id,
             merchant_name=merchant.merchant_name,
             category=merchant.category,
+            currency=merchant.currency,
             capabilities=[
                 "catalog_discovery",
                 "intent_negotiation",

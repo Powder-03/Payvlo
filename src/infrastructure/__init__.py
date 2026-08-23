@@ -1,6 +1,6 @@
 """Infrastructure layer module exports."""
 from .config import settings, AppSettings
-from .database import create_db_engine, init_database, seed_merchants_and_catalog
+from .database import create_db_engine, init_database
 from .server import app, create_application
 
 __all__ = [
@@ -8,7 +8,6 @@ __all__ = [
     "AppSettings",
     "create_db_engine",
     "init_database",
-    "seed_merchants_and_catalog",
     "app",
     "create_application",
 ]

@@ -133,19 +133,25 @@ class MCPController:
         quote_id: str,
         idempotency_key: str,
         user_id: str,
-        max_spend_budget: float,
+        max_spend_budget: Optional[float] = None,
+        user_authorized_budget: Optional[float] = None,
         shipping_address: Optional[Dict[str, Any]] = None,
         merchant_id: Optional[str] = None,
+        **kwargs,
     ) -> Dict[str, Any]:
         """Tool: execute_bounded_checkout
 
         Execute checkout with strict budget bounds, atomic spend cap validation, 24h idempotency defense, and Razorpay test payment rails.
         """
         try:
+            budget = max_spend_budget if max_spend_budget is not None else user_authorized_budget
+            if budget is None:
+                budget = 100000.0
+
             addr_dto = None
             if shipping_address:
                 addr_dto = AddressDTO(
-                    line1=shipping_address.get("line1", "Default Street"),
+                    line1=shipping_address.get("line1") or shipping_address.get("street_address", "Default Street"),
                     line2=shipping_address.get("line2"),
                     city=shipping_address.get("city", "Bengaluru"),
                     state=shipping_address.get("state", "KA"),
@@ -159,7 +165,7 @@ class MCPController:
                 quote_id=quote_id,
                 idempotency_key=idempotency_key,
                 user_id=user_id,
-                max_spend_budget=max_spend_budget,
+                max_spend_budget=budget,
                 shipping_address=addr_dto,
                 merchant_id=merchant_id,
             )

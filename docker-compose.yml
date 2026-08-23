@@ -19,6 +19,9 @@ services:
       - RAZORPAY_KEY_SECRET=rzp_test_placeholder_secret
       - RAZORPAY_SANDBOX_MODE=true
       - PORT=8000
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
     depends_on:
       postgres:
         condition: service_healthy
