@@ -18,6 +18,8 @@ from ..adapters.razorpay_rails import RazorpayPaymentRailAdapter
 from ..adapters.mcp_controller import MCPController, create_mcp_router
 from ..adapters.uap_controller import create_uap_router
 from ..adapters.merchant_controller import create_merchant_router
+from ..adapters.auth_controller import create_auth_router
+from ..adapters.postgres_repo import PostgresUserRepository
 from ..adapters.catalog_sync_providers import CatalogSyncDispatcher
 from ..application.use_cases import (
     SearchCatalogUseCase,
@@ -42,6 +44,7 @@ def create_application() -> FastAPI:
     # 1. Initialize Database & Repositories
     db_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
     engine, session_factory, catalog_repo, audit_repo = init_database(db_url)
+    user_repo = PostgresUserRepository(session_factory)
 
     # Run Seeder
     seed_merchants_and_catalog(catalog_repo)
@@ -114,7 +117,7 @@ def create_application() -> FastAPI:
         catalog_repo=catalog_repo,
     )
 
-    # 6. Instantiate MCP, UAP, and Merchant Controllers
+    # 6. Instantiate MCP, UAP, Merchant, and Auth Controllers
     mcp_controller = MCPController(
         search_catalog_uc=search_catalog_uc,
         request_quote_uc=request_quote_uc,
@@ -133,27 +136,33 @@ def create_application() -> FastAPI:
         active_merchant_id=active_merchant_id,
         base_url=settings.PUBLIC_BASE_URL,
     )
+    auth_router = create_auth_router(
+        user_repo=user_repo,
+        catalog_repo=catalog_repo,
+    )
     merchant_router = create_merchant_router(
         onboard_uc=onboard_merchant_uc,
         sync_uc=sync_catalog_uc,
         list_uc=list_merchants_uc,
         catalog_repo=catalog_repo,
+        user_repo=user_repo,
+        base_url=settings.PUBLIC_BASE_URL,
     )
 
     # 7. Lifespan context
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         logger.info(
-            f"🚀 Universal Agentic Commerce Node online for [{merchant_name}] ({active_merchant_id})."
+            f"🚀 Universal Agentic Commerce Node & SaaS Portal online for [{merchant_name}] ({active_merchant_id})."
         )
-        logger.info("Protocols enabled: Model Context Protocol (MCP/SSE) + Universal Agent Protocol (UAP/A2A) + Dynamic Merchant Ingestion.")
+        logger.info("Protocols enabled: Model Context Protocol (MCP/SSE) + Universal Agent Protocol (UAP/A2A) + Merchant SaaS Auth.")
         yield
         logger.info("Commerce Node shutting down.")
 
     # 8. Create FastAPI App
     app = FastAPI(
-        title="Universal Agentic Commerce Node",
-        description="Dual-Interface Gateway for Tool-Calling & Autonomous Peer Agents with Zero-Trust Spend Bounds, Dynamic Merchant Sync & Razorpay Rails.",
+        title="Universal Agentic Commerce Node & Merchant Portal",
+        description="Dual-Interface Gateway for Tool-Calling & Autonomous Peer Agents with Zero-Trust Spend Bounds, Merchant SaaS Auth & Razorpay Rails.",
         version="1.0.0",
         lifespan=lifespan,
     )
@@ -167,9 +176,10 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount Protocol & Admin Routers
+    # Mount Protocol, Auth & Admin Routers
     app.include_router(mcp_router)
     app.include_router(uap_router)
+    app.include_router(auth_router)
     app.include_router(merchant_router)
 
     # Public Discovery & Health Routes
@@ -179,86 +189,26 @@ def create_application() -> FastAPI:
             "status": "healthy",
             "active_merchant_id": active_merchant_id,
             "node_name": merchant_name,
-            "protocols": ["MCP/SSE", "UAP/A2A"],
+            "protocols": ["MCP/SSE", "UAP/A2A", "Merchant-SaaS-Auth"],
             "gatekeeper": "Upstash-Redis / Atomic Lua",
             "payment_rail": "Razorpay Test Rails",
         }
 
+    # Serve Dashboard HTML
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+
     @app.get("/", response_class=HTMLResponse)
-    def landing_page():
-        return f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Universal Agentic Commerce Node</title>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0B0F19; color: #E2E8F0; margin: 0; padding: 40px 20px; }}
-                .container {{ max-width: 860px; margin: 0 auto; background: #1E293B; border-radius: 16px; padding: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); border: 1px solid #334155; }}
-                h1 {{ color: #38BDF8; font-size: 28px; margin-top: 0; display: flex; align-items: center; gap: 12px; }}
-                .badge {{ background: #0284C7; color: white; font-size: 12px; padding: 4px 10px; border-radius: 999px; font-weight: bold; text-transform: uppercase; }}
-                .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px; }}
-                .card {{ background: #0F172A; padding: 20px; border-radius: 12px; border: 1px solid #1E293B; }}
-                .card h3 {{ color: #F1F5F9; margin-top: 0; font-size: 18px; }}
-                code {{ background: #020617; color: #38BDF8; padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 13px; }}
-                ul {{ padding-left: 20px; color: #94A3B8; font-size: 14px; line-height: 1.6; }}
-                a {{ color: #38BDF8; text-decoration: none; font-weight: 500; }}
-                a:hover {{ text-decoration: underline; }}
-                .footer {{ margin-top: 30px; text-align: center; color: #64748B; font-size: 13px; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Universal Agentic Commerce Node <span class="badge">Production Ready</span></h1>
-                <p style="color: #94A3B8; font-size: 16px;">
-                    Dual-interface autonomous commerce gateway running <strong>Clean Architecture</strong> on Render.
-                    Current Active Merchant: <strong style="color: #F8FAFC;">{merchant_name}</strong> (<code>{active_merchant_id}</code>).
-                </p>
-
-                <div class="grid">
-                    <div class="card">
-                        <h3>⚡ MCP Interface (M2T)</h3>
-                        <p style="font-size: 14px; color: #94A3B8;">For tool-calling agents (Claude Desktop, Cursor, Swarm):</p>
-                        <ul>
-                            <li>SSE Endpoint: <code><a href="/sse">/sse</a></code></li>
-                            <li>Tools Discovery: <code><a href="/mcp/tools">/mcp/tools</a></code></li>
-                            <li>Direct RPC Call: <code>POST /mcp/call</code></li>
-                        </ul>
-                    </div>
-                    <div class="card">
-                        <h3>🌐 UAP / A2A Protocol</h3>
-                        <p style="font-size: 14px; color: #94A3B8;">For peer-to-peer autonomous buyer agents:</p>
-                        <ul>
-                            <li>Agent Card: <code><a href="/.well-known/agent.json">/.well-known/agent.json</a></code></li>
-                            <li>Intent Negotiation: <code>POST /uap/v1/negotiate</code></li>
-                            <li>Signed Settlement: <code>POST /uap/v1/transact</code></li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <h3>🛡️ Zero-Trust Security & Bounded Gatekeeper</h3>
-                    <ul>
-                        <li><strong>Deterministic Clamping:</strong> <code>min(requested, product.max, merchant.max)</code></li>
-                        <li><strong>Atomic Redis Gatekeeper:</strong> Sub-ms Lua script spend budget verification</li>
-                        <li><strong>24-Hour Idempotency:</strong> Replay attack cache & double-charge defense</li>
-                        <li><strong>Privacy-Preserving Audit:</strong> Masked PII append-only PostgreSQL ledger</li>
-                        <li><strong>Payment Rails:</strong> Razorpay Sandbox Test Mode</li>
-                    </ul>
-                </div>
-
-                <div class="footer">
-                    Universal Agentic Commerce Node &bull; Clean Architecture &bull; Ready for Render Web Service
-                </div>
-            </div>
-        </body>
-        </html>
-        """
+    @app.get("/portal", response_class=HTMLResponse)
+    def merchant_portal():
+        if os.path.exists(dashboard_path):
+            with open(dashboard_path, "r", encoding="utf-8") as f:
+                return f.read()
+        return "<h1>Payvlo Merchant Portal</h1><p>Dashboard template not found.</p>"
 
     # Expose helper references for test harness
     app.state.catalog_repo = catalog_repo
     app.state.audit_repo = audit_repo
+    app.state.user_repo = user_repo
     app.state.gatekeeper = gatekeeper
     app.state.payment_rail = payment_rail
     app.state.mcp_controller = mcp_controller

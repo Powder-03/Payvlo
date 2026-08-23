@@ -22,6 +22,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from ..domain.entities import (
     MerchantProfile,
     CatalogSyncConfig,
+    User,
     Product,
     Address,
     QuoteItem,
@@ -31,7 +32,7 @@ from ..domain.entities import (
     current_utc_timestamp,
 )
 from ..domain.exceptions import OutOfStockError
-from ..domain.ports import ICatalogRepository, IAuditRepository
+from ..domain.ports import ICatalogRepository, IAuditRepository, IUserRepository
 
 Base = declarative_base()
 
@@ -39,6 +40,18 @@ Base = declarative_base()
 # ==========================================
 # SQLAlchemy ORM Models
 # ==========================================
+class UserModel(Base):
+    __tablename__ = "users"
+
+    user_id = Column(String(64), primary_key=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    salt = Column(String(64), nullable=False)
+    full_name = Column(String(255), default="")
+    company_name = Column(String(255), default="")
+    created_at = Column(String(64), nullable=False)
+
+
 class MerchantModel(Base):
     __tablename__ = "merchants"
 
@@ -53,6 +66,7 @@ class MerchantModel(Base):
     support_email = Column(String(255), default="support@merchant.com")
     webhook_secret = Column(String(255), nullable=True)
     sync_config_json = Column(Text, default="{}")
+    owner_user_id = Column(String(64), nullable=True, index=True)
     metadata_json = Column(Text, default="{}")
 
 
@@ -164,6 +178,7 @@ class PostgresCatalogRepository(ICatalogRepository):
             support_email=m.support_email,
             webhook_secret=m.webhook_secret,
             sync_config=sync_cfg,
+            owner_user_id=m.owner_user_id,
             metadata=json.loads(m.metadata_json or "{}"),
         )
 
@@ -185,6 +200,11 @@ class PostgresCatalogRepository(ICatalogRepository):
     def get_merchant(self, merchant_id: str) -> Optional[MerchantProfile]:
         with self.session_factory() as session:
             m = session.query(MerchantModel).filter_by(merchant_id=merchant_id).first()
+            return self._to_merchant_entity(m) if m else None
+
+    def get_merchant_by_owner(self, owner_user_id: str) -> Optional[MerchantProfile]:
+        with self.session_factory() as session:
+            m = session.query(MerchantModel).filter_by(owner_user_id=owner_user_id).first()
             return self._to_merchant_entity(m) if m else None
 
     def list_merchants(self) -> List[MerchantProfile]:
@@ -213,6 +233,7 @@ class PostgresCatalogRepository(ICatalogRepository):
                 existing.support_email = merchant.support_email
                 existing.webhook_secret = merchant.webhook_secret
                 existing.sync_config_json = sync_json
+                existing.owner_user_id = merchant.owner_user_id
                 existing.metadata_json = json.dumps(merchant.metadata)
             else:
                 m = MerchantModel(
@@ -229,6 +250,7 @@ class PostgresCatalogRepository(ICatalogRepository):
                     support_email=merchant.support_email,
                     webhook_secret=merchant.webhook_secret,
                     sync_config_json=sync_json,
+                    owner_user_id=merchant.owner_user_id,
                     metadata_json=json.dumps(merchant.metadata),
                 )
                 session.add(m)
@@ -580,3 +602,54 @@ class PostgresAuditRepository(IAuditRepository):
                 )
                 for e in entries
             ]
+
+
+class PostgresUserRepository(IUserRepository):
+    """Platform merchant user account persistence using SQLAlchemy."""
+
+    def __init__(self, session_factory: sessionmaker):
+        self.session_factory = session_factory
+
+    def _to_user_entity(self, u: UserModel) -> User:
+        return User(
+            user_id=u.user_id,
+            email=u.email,
+            password_hash=u.password_hash,
+            salt=u.salt,
+            full_name=u.full_name,
+            company_name=u.company_name,
+            created_at=u.created_at,
+        )
+
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        with self.session_factory() as session:
+            u = session.query(UserModel).filter_by(email=email.strip().lower()).first()
+            return self._to_user_entity(u) if u else None
+
+    def get_user_by_id(self, user_id: str) -> Optional[User]:
+        with self.session_factory() as session:
+            u = session.query(UserModel).filter_by(user_id=user_id).first()
+            return self._to_user_entity(u) if u else None
+
+    def save_user(self, user: User) -> None:
+        with self.session_factory() as session:
+            existing = session.query(UserModel).filter_by(user_id=user.user_id).first()
+            if existing:
+                existing.email = user.email.strip().lower()
+                existing.password_hash = user.password_hash
+                existing.salt = user.salt
+                existing.full_name = user.full_name
+                existing.company_name = user.company_name
+            else:
+                u = UserModel(
+                    user_id=user.user_id,
+                    email=user.email.strip().lower(),
+                    password_hash=user.password_hash,
+                    salt=user.salt,
+                    full_name=user.full_name,
+                    company_name=user.company_name,
+                    created_at=user.created_at,
+                )
+                session.add(u)
+            session.commit()
+
