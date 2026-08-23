@@ -5,10 +5,12 @@ Exposes merchant catalog, quote, checkout, and audit tools to tool-calling agent
 (Claude Desktop, Cursor, OpenAI Swarm) over FastMCP / SSE.
 """
 import json
+import uuid
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Request, Query, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from ..application.use_cases import (
     SearchCatalogUseCase,
@@ -410,25 +412,11 @@ class MCPController:
 
 
 def create_mcp_router(controller: MCPController) -> APIRouter:
-    """Builds FastAPI router for MCP SSE transport and HTTP endpoints."""
+    """Builds FastAPI router for MCP SSE transport and JSON-RPC 2.0 endpoints."""
     router = APIRouter(tags=["MCP Interface"])
+    sse_sessions: Dict[str, asyncio.Queue] = {}
 
-    @router.get("/mcp/tools")
-    def list_mcp_tools():
-        """Lists all registered tools for tool-calling agents."""
-        return {
-            "node_name": controller.merchant_name,
-            "transport": "sse",
-            "tools": controller.get_tool_definitions(),
-        }
-
-    @router.post("/mcp/call")
-    async def call_tool_direct(request: Request):
-        """Standard JSON-RPC 2.0 / HTTP tool invocation bridge."""
-        body = await request.json()
-        tool_name = body.get("name") or body.get("tool")
-        arguments = body.get("arguments") or body.get("params") or {}
-
+    def _execute_tool(tool_name: str, arguments: dict) -> dict:
         if tool_name == "search_store_catalog":
             return controller.search_store_catalog(**arguments)
         elif tool_name == "request_price_quote":
@@ -450,28 +438,47 @@ def create_mcp_router(controller: MCPController) -> APIRouter:
                 },
             }
 
+    @router.get("/mcp/tools")
+    def list_mcp_tools():
+        """Lists all registered tools for tool-calling agents."""
+        return {
+            "node_name": controller.merchant_name,
+            "transport": "sse",
+            "tools": controller.get_tool_definitions(),
+        }
+
+    @router.post("/mcp/call")
+    async def call_tool_direct(request: Request):
+        """Standard HTTP tool invocation bridge."""
+        body = await request.json()
+        tool_name = body.get("name") or body.get("tool")
+        arguments = body.get("arguments") or body.get("params") or {}
+        return _execute_tool(tool_name, arguments)
+
     @router.get("/sse")
     async def sse_endpoint(request: Request):
-        """Server-Sent Events (SSE) stream for FastMCP protocol connections."""
-        async def event_generator():
-            # Initial handshake message
-            init_event = {
-                "event": "connected",
-                "data": json.dumps({
-                    "status": "ready",
-                    "protocol": "mcp/sse/1.0",
-                    "server": controller.merchant_name,
-                    "tools_count": len(controller.get_tool_definitions()),
-                }),
-            }
-            yield f"event: {init_event['event']}\ndata: {init_event['data']}\n\n"
+        """Official MCP SSE Transport endpoint. Emits endpoint event and streams JSON-RPC responses."""
+        session_id = uuid.uuid4().hex
+        queue: asyncio.Queue = asyncio.Queue()
+        sse_sessions[session_id] = queue
 
-            # Ping keep-alive
-            ping_event = {
-                "event": "ping",
-                "data": json.dumps({"timestamp": current_utc_timestamp()}),
-            }
-            yield f"event: {ping_event['event']}\ndata: {ping_event['data']}\n\n"
+        async def event_generator():
+            try:
+                # 1. Official MCP Spec: emit endpoint URL where client must POST messages
+                endpoint_url = f"/messages?sessionId={session_id}"
+                yield f"event: endpoint\ndata: {endpoint_url}\n\n"
+
+                # 2. Stream JSON-RPC messages and ping keep-alives
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    try:
+                        msg = await asyncio.wait_for(queue.get(), timeout=15.0)
+                        yield f"event: message\ndata: {json.dumps(msg)}\n\n"
+                    except asyncio.TimeoutError:
+                        yield f": ping {current_utc_timestamp()}\n\n"
+            finally:
+                sse_sessions.pop(session_id, None)
 
         return StreamingResponse(
             event_generator(),
@@ -480,7 +487,80 @@ def create_mcp_router(controller: MCPController) -> APIRouter:
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
             },
         )
+
+    @router.post("/messages")
+    async def handle_mcp_messages(request: Request, sessionId: Optional[str] = None):
+        """Official MCP JSON-RPC 2.0 Message Ingress."""
+        try:
+            body = await request.json()
+        except Exception:
+            return Response(status_code=400, content="Invalid JSON")
+
+        msg_id = body.get("id")
+        method = body.get("method")
+        params = body.get("params") or {}
+
+        response = None
+
+        if method == "initialize":
+            response = {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {
+                            "listChanged": False
+                        }
+                    },
+                    "serverInfo": {
+                        "name": f"Payvlo Commerce Gateway ({controller.merchant_name})",
+                        "version": "1.0.0"
+                    }
+                }
+            }
+        elif method == "notifications/initialized":
+            return Response(status_code=202)
+        elif method == "tools/list":
+            response = {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "tools": controller.get_tool_definitions()
+                }
+            }
+        elif method == "tools/call":
+            tool_name = params.get("name")
+            arguments = params.get("arguments") or {}
+            tool_res = _execute_tool(tool_name, arguments)
+            
+            response = {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(tool_res, indent=2)
+                        }
+                    ],
+                    "isError": not tool_res.get("success", True)
+                }
+            }
+        elif method == "ping":
+            response = {"jsonrpc": "2.0", "id": msg_id, "result": {}}
+
+        # If connected via active SSE session, stream message back on SSE channel
+        if sessionId and sessionId in sse_sessions and response:
+            await sse_sessions[sessionId].put(response)
+            return Response(status_code=202)
+
+        # Fallback to direct HTTP JSON response
+        if response:
+            return JSONResponse(content=response)
+        return Response(status_code=202)
 
     return router
