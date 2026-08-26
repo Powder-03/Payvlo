@@ -34,6 +34,7 @@ from ..application.dto import (
 )
 from ..domain.exceptions import DomainError
 from ..domain.entities import current_utc_timestamp
+from .mcp_schemas import get_mcp_tool_definitions
 
 logger = logging.getLogger("MCPController")
 
@@ -288,127 +289,9 @@ class MCPController:
         except Exception as ex:
             return {"success": False, "error": {"type": "InternalError", "message": str(ex)}}
 
-    # ==========================================
-    # MCP Protocol Schemas & Tool Definitions
-    # ==========================================
     def get_tool_definitions(self) -> List[Dict[str, Any]]:
         """Returns JSON-Schema tool definitions formatted for Claude Desktop & Cursor MCP clients."""
-        return [
-            {
-                "name": "search_store_catalog",
-                "description": "Discover available products, live stock counts, and prices in the merchant store catalog.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "Search keyword or SKU"},
-                        "category": {"type": "string", "description": "Category filter"},
-                        "min_price": {"type": "number", "description": "Minimum price in INR"},
-                        "max_price": {"type": "number", "description": "Maximum price in INR"},
-                        "merchant_id": {"type": "string", "description": "Merchant ID"},
-                        "limit": {"type": "integer", "default": 20},
-                    },
-                },
-            },
-            {
-                "name": "request_price_quote",
-                "description": "Submit a list of products to compute a bound quote with deterministic discount clamping.",
-                "inputSchema": {
-                    "type": "object",
-                    "required": ["items"],
-                    "properties": {
-                        "items": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "required": ["product_id"],
-                                "properties": {
-                                    "product_id": {"type": "string"},
-                                    "quantity": {"type": "integer", "default": 1},
-                                    "requested_discount_pct": {"type": "number", "default": 0.0},
-                                },
-                            },
-                        },
-                        "requested_discount": {"type": "number", "default": 0.0},
-                        "merchant_id": {"type": "string"},
-                    },
-                },
-            },
-            {
-                "name": "execute_bounded_checkout",
-                "description": "Execute checkout with strict budget bounds, 24h idempotency key, atomic spend cap check, and Razorpay rails.",
-                "inputSchema": {
-                    "type": "object",
-                    "required": ["quote_id", "idempotency_key", "user_id", "max_spend_budget"],
-                    "properties": {
-                        "quote_id": {"type": "string"},
-                        "idempotency_key": {"type": "string"},
-                        "user_id": {"type": "string"},
-                        "max_spend_budget": {"type": "number"},
-                        "shipping_address": {
-                            "type": "object",
-                            "properties": {
-                                "line1": {"type": "string"},
-                                "line2": {"type": "string"},
-                                "city": {"type": "string"},
-                                "state": {"type": "string"},
-                                "postal_code": {"type": "string"},
-                                "phone": {"type": "string"},
-                                "email": {"type": "string"},
-                            },
-                        },
-                        "merchant_id": {"type": "string"},
-                    },
-                },
-            },
-            {
-                "name": "inspect_audit_trail",
-                "description": "Inspect append-only ledger entries with privacy-preserving masked PII and explainable decisions.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "merchant_id": {"type": "string"},
-                        "user_id": {"type": "string"},
-                        "limit": {"type": "integer", "default": 10},
-                    },
-                },
-            },
-            {
-                "name": "onboard_merchant",
-                "description": "Dynamically onboard any merchant (Shopify, Custom REST API, or Direct) with custom spending guardrails.",
-                "inputSchema": {
-                    "type": "object",
-                    "required": ["merchant_id", "merchant_name", "category"],
-                    "properties": {
-                        "merchant_id": {"type": "string", "description": "Unique merchant slug"},
-                        "merchant_name": {"type": "string", "description": "Brand / Store name"},
-                        "category": {"type": "string", "description": "Store category"},
-                        "currency": {"type": "string", "default": "INR"},
-                        "max_discount_percentage": {"type": "number", "default": 15.0},
-                        "per_tx_spend_cap": {"type": "number", "default": 10000.0},
-                        "daily_merchant_spend_cap": {"type": "number", "default": 100000.0},
-                        "sync_config": {
-                            "type": "object",
-                            "properties": {
-                                "provider": {"type": "string", "description": "'shopify', 'custom_api', or 'direct'"},
-                                "endpoint_url": {"type": "string"},
-                                "access_token": {"type": "string"},
-                            },
-                        },
-                    },
-                },
-            },
-            {
-                "name": "sync_merchant_catalog",
-                "description": "Trigger catalog synchronization from Shopify or external REST API for a registered merchant.",
-                "inputSchema": {
-                    "type": "object",
-                    "required": ["merchant_id"],
-                    "properties": {
-                        "merchant_id": {"type": "string", "description": "Merchant ID to sync"},
-                    },
-                },
-            },
-        ]
+        return get_mcp_tool_definitions()
 
 
 def create_mcp_router(controller: MCPController) -> APIRouter:
@@ -416,25 +299,34 @@ def create_mcp_router(controller: MCPController) -> APIRouter:
     router = APIRouter(tags=["MCP Interface"])
     sse_sessions: Dict[str, asyncio.Queue] = {}
 
+    tool_dispatch = {
+        "search_store_catalog": controller.search_store_catalog,
+        "request_price_quote": controller.request_price_quote,
+        "execute_bounded_checkout": controller.execute_bounded_checkout,
+        "inspect_audit_trail": controller.inspect_audit_trail,
+        "onboard_merchant": controller.onboard_merchant,
+        "sync_merchant_catalog": controller.sync_merchant_catalog,
+    }
+
     def _execute_tool(tool_name: str, arguments: dict) -> dict:
-        if tool_name == "search_store_catalog":
-            return controller.search_store_catalog(**arguments)
-        elif tool_name == "request_price_quote":
-            return controller.request_price_quote(**arguments)
-        elif tool_name == "execute_bounded_checkout":
-            return controller.execute_bounded_checkout(**arguments)
-        elif tool_name == "inspect_audit_trail":
-            return controller.inspect_audit_trail(**arguments)
-        elif tool_name == "onboard_merchant":
-            return controller.onboard_merchant(**arguments)
-        elif tool_name == "sync_merchant_catalog":
-            return controller.sync_merchant_catalog(**arguments)
-        else:
+        handler = tool_dispatch.get(tool_name)
+        if not handler:
             return {
                 "success": False,
                 "error": {
                     "type": "InvalidTool",
                     "message": f"Tool '{tool_name}' is not recognized.",
+                },
+            }
+        try:
+            return handler(**arguments)
+        except Exception as ex:
+            logger.error(f"Error executing MCP tool {tool_name}: {ex}")
+            return {
+                "success": False,
+                "error": {
+                    "type": "ExecutionError",
+                    "message": str(ex),
                 },
             }
 

@@ -1,0 +1,34 @@
+[
+  {
+    "user_id": "usr_demo_dominos",
+    "email": "demo@payvlo.com",
+    "password": "password123",
+    "full_name": "Rajesh Sharma",
+    "company_name": "Domino's Pizza India",
+    "merchant_id": "dominos_in"
+  },
+  {
+    "user_id": "usr_fitness_beastlife",
+    "email": "fitness@payvlo.com",
+    "password": "password123",
+    "full_name": "Ananya Verma",
+    "company_name": "BeastLife Performance Nutrition",
+    "merchant_id": "beastlife_d2c"
+  },
+  {
+    "user_id": "usr_tech_havells",
+    "email": "tech@payvlo.com",
+    "password": "password123",
+    "full_name": "Vikram Malhotra",
+    "company_name": "Havells Smart Tech",
+    "merchant_id": "havells_tech"
+  },
+  {
+    "user_id": "usr_fashion_urban",
+    "email": "fashion@payvlo.com",
+    "password": "password123",
+    "full_name": "Rohan Mehta",
+    "company_name": "Urban Threads Streetwear",
+    "merchant_id": "urban_threads"
+  }
+]
