@@ -2,7 +2,7 @@
 
 Clean Architecture layer: Application.
 """
-from ...domain.ports import ICatalogRepository
+from ...domain.catalog import ICatalogRepository
 from ..dto import (
     MerchantListResponseDTO,
     MerchantProfileDTO,

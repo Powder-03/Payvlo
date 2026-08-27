@@ -1,6 +1,6 @@
 """Adapters layer module exports."""
 from .redis_gatekeeper import RedisGatekeeperAdapter
-from .postgres_repo import (
+from .db import (
     Base,
     UserModel,
     MerchantModel,

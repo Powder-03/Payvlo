@@ -6,8 +6,9 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import List
 
-from ...domain.entities import Quote, QuoteItem, AuditEntry
-from ...domain.ports import ICatalogRepository, IAuditRepository
+from ...domain.checkout import Quote, QuoteItem
+from ...domain.audit import AuditEntry, IAuditRepository
+from ...domain.catalog import ICatalogRepository
 from ...domain.exceptions import (
     MerchantConfigError,
     ProductNotFoundError,

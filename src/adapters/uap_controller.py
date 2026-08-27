@@ -7,7 +7,7 @@ negotiate intent (/uap/v1/negotiate), and execute signed settlements (/uap/v1/tr
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, status
 
-from ..domain.ports import ICatalogRepository
+from ..domain.catalog import ICatalogRepository
 from ..domain.exceptions import DomainError
 from ..application.use_cases import (
     NegotiateIntentUseCase,

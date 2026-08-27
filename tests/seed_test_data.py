@@ -19,8 +19,11 @@ from sqlalchemy.orm import sessionmaker
 
 from src.infrastructure.config import settings
 from src.infrastructure.database import create_db_engine, init_database
-from src.domain.entities import MerchantProfile, Product, User
-from src.adapters.postgres_repo import (
+from src.domain.merchant import MerchantProfile
+from src.domain.catalog import Product
+from src.domain.auth import User
+from src.adapters.db import (
+    Base,
     ProductModel,
     MerchantModel,
     UserModel,
@@ -35,16 +38,18 @@ DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data")
 
 
 def load_json_file(filename: str):
-    filepath = os.path.join(DATA_DIR, filename)
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Seed file not found: {filepath}")
-    with open(filepath, "r", encoding="utf-8") as f:
+    path = os.path.join(DATA_DIR, filename)
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def seed_test_environment(database_url: str = None):
+def seed_test_environment(database_url: str = None, reset: bool = True):
     db_url = database_url or os.getenv("DATABASE_URL", settings.DATABASE_URL)
     engine, session_factory, catalog_repo, audit_repo, user_repo = init_database(db_url)
+
+    if reset:
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
 
     logger.info(f"🌱 Loading seed inventory & merchant data from {DATA_DIR}...")
 

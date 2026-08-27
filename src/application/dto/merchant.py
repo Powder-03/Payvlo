@@ -30,6 +30,7 @@ class MerchantProfileDTO(BaseModel):
     allowed_payment_methods: List[str]
     support_email: str
     sync_config: Optional[CatalogSyncConfigDTO] = None
+    owner_user_id: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 

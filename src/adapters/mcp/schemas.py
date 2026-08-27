@@ -1,6 +1,6 @@
 """Model Context Protocol (MCP) JSON Schema Definitions.
 
-Clean Architecture layer: Adapters.
+Clean Architecture layer: Adapters (MCP).
 Defines inputSchema objects for Claude Desktop, Cursor, and MCP Inspector tools.
 """
 from typing import List, Dict, Any

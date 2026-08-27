@@ -9,7 +9,7 @@ from typing import Tuple
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 
-from ..adapters.postgres_repo import (
+from ..adapters.db import (
     Base,
     PostgresCatalogRepository,
     PostgresAuditRepository,

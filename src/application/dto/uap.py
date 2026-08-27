@@ -47,13 +47,19 @@ class UAPTransactRequestDTO(BaseModel):
     buyer_agent_id: str
     quote_id: str
     idempotency_key: str
-    authorized_budget: float
+    authorized_spend_limit: float
     shipping_address: Optional[AddressDTO] = None
     merchant_id: Optional[str] = None
+    agent_signature: Optional[str] = None
 
 
 class UAPTransactResponseDTO(BaseModel):
     status: str
-    order: Optional[CheckoutResponseDTO]
-    receipt_notes: str
-    settled: bool
+    order_id: str
+    razorpay_order_id: Optional[str] = None
+    payment_link: Optional[str] = None
+    amount_settled: float
+    currency: str = "INR"
+    audit_id: str
+    message: str
+

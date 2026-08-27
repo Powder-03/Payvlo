@@ -102,36 +102,59 @@ Payvlo strictly follows **Hexagonal / Clean Architecture**. Domain business logi
      └───────────────────┘  └───────────────────┘  └───────────────────┘  └───────────────────┘
 ```
 
-### Directory Layout
+### Directory Layout (Modular Monolith)
 
 ```
 payvlo/
 ├── src/
-│   ├── domain/                         # Enterprise Domain Entities & Ports (Zero 3rd-party dependencies)
-│   │   ├── entities.py                 # MerchantProfile, CatalogSyncConfig, Product, Quote, Order, AuditEntry
-│   │   ├── exceptions.py               # DomainError, SpendCapExceededError, OutOfStockError, etc.
-│   │   └── ports.py                    # Interfaces: ICatalogRepository, IGatekeeper, IPaymentRail, ICatalogSyncProvider
+│   ├── domain/                         # Enterprise Domain (Bounded Contexts)
+│   │   ├── auth/                       # User entities and IUserRepository port
+│   │   ├── merchant/                   # MerchantProfile, CatalogSyncConfig, IMerchantRepository
+│   │   ├── catalog/                    # Product, ICatalogRepository, ICatalogSyncProvider
+│   │   ├── checkout/                   # Quote, Order, Address, IPaymentRail
+│   │   ├── gatekeeper/                 # IGatekeeper port (Zero-Trust Spend Bounds)
+│   │   ├── audit/                      # AuditEntry, IAuditRepository
+│   │   ├── common/                     # Common domain timestamps & helpers
+│   │   └── exceptions.py               # Domain exception hierarchy
 │   │
-│   ├── application/                    # Application Business Rules
-│   │   ├── dto.py                      # Pydantic v2 DTOs for MCP, UAP, and Onboarding Schemas
-│   │   └── use_cases.py                # Coordinate domain entities, validation, clamping, and transactions
+│   ├── application/                    # Application Business Rules & Slices
+│   │   ├── dto/                        # Domain-scoped DTOs (auth, catalog, checkout, etc.)
+│   │   └── use_cases/                  # Single-purpose Use Case classes
 │   │
-│   ├── adapters/                       # Ingress & Egress Adapters
-│   │   ├── mcp_controller.py           # FastMCP SSE stream & JSON-RPC /mcp/call tool dispatcher
+│   ├── adapters/                       # Protocol & Egress Adapters
+│   │   ├── db/                         # Modular database ORM models & repositories
+│   │   │   ├── auth/                   # UserModel, PostgresUserRepository
+│   │   │   ├── merchant/               # MerchantModel
+│   │   │   ├── catalog/                # ProductModel, PostgresCatalogRepository
+│   │   │   ├── checkout/               # QuoteModel, OrderModel
+│   │   │   ├── audit/                  # AuditEntryModel, PostgresAuditRepository
+│   │   │   └── base.py                 # SQLAlchemy Base
+│   │   ├── sync_providers/             # Shopify, Custom REST, Direct, Dispatcher
+│   │   ├── mcp/                        # FastMCP tool execution, JSON-RPC, SSE transport
 │   │   ├── uap_controller.py           # UAP A2A protocol routes (/.well-known/agent.json, /negotiate, /transact)
 │   │   ├── merchant_controller.py      # REST Ingress (/api/v1/merchants/onboard, /sync, list)
-│   │   ├── catalog_sync_providers.py   # Shopify, Custom REST API, Direct Ingestion & Dispatcher
+│   │   ├── auth_controller.py          # JWT authentication, signup, login
+│   │   ├── webhook_controller.py       # Event-driven merchant webhooks
 │   │   ├── redis_gatekeeper.py         # Upstash Redis / In-Memory adapter with atomic Lua spend scripts
-│   │   ├── postgres_repo.py            # PostgreSQL / SQLite repository with inventory locking
 │   │   └── razorpay_rails.py           # Razorpay SDK adapter with Sandbox test simulator
 │   │
 │   └── infrastructure/                 # Frameworks & Server Configuration
 │       ├── config.py                   # Pydantic BaseSettings environment loader
-│       ├── database.py                 # DB engine, sessionmaker, and multi-merchant seeder
+│       ├── database.py                 # DB engine, sessionmaker, and schema migration
+│       ├── scheduler.py                # Background auto-sync scheduler
 │       └── server.py                   # FastAPI ASGI application assembler
 │
 ├── tests/
-│   └── test_harness.py                 # 11-step autonomous E2E test suite
+│   ├── e2e/                            # Modularized E2E test suites (16 test steps)
+│   │   ├── test_01_health_and_protocols.py
+│   │   ├── test_02_discount_clamping.py
+│   │   ├── test_03_spend_caps_and_checkout.py
+│   │   ├── test_04_uap_a2a_protocol.py
+│   │   ├── test_05_audit_ledger.py
+│   │   ├── test_06_dynamic_onboarding.py
+│   │   ├── test_07_merchant_saas_auth.py
+│   │   └── test_08_webhooks_and_scheduler.py
+│   └── test_harness.py                 # Master E2E test suite orchestrator
 ├── docker-compose.yml                  # PostgreSQL 15 + Redis 7 + Commerce Node container setup
 ├── Dockerfile                          # Multi-stage container build
 ├── render.yaml                         # One-click Render deployment blueprint

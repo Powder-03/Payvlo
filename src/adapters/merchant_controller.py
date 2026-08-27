@@ -18,9 +18,9 @@ from ..application.dto import (
     MyStoreResponseDTO,
     ProductDTO,
 )
-from ..domain.entities import User
+from ..domain.auth import User, IUserRepository
+from ..domain.catalog import ICatalogRepository
 from ..domain.exceptions import DomainError
-from ..domain.ports import ICatalogRepository, IUserRepository
 from .auth_controller import get_current_user_dependency
 
 logger = logging.getLogger("MerchantController")

@@ -15,8 +15,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, Request, HTTPException, Header, status
 
-from ..domain.entities import Product
-from ..domain.ports import ICatalogRepository
+from ..domain.catalog import Product, ICatalogRepository
 
 logger = logging.getLogger("WebhookController")
 
@@ -140,7 +139,7 @@ def create_webhook_router(catalog_repo: ICatalogRepository) -> APIRouter:
                     )
                 )
 
-            catalog_repo.save_products(merchant_id, products_to_save)
+            catalog_repo.save_products(products_to_save)
             logger.info(f"Real-time webhook updated {len(products_to_save)} items for {merchant_id}")
 
             return {

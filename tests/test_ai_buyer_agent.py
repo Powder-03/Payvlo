@@ -119,7 +119,7 @@ def run_a2a_agent_simulation():
             "Discount Saved": f"₹{quote['total_discount_amount']}",
             "Final Negotiated Price": f"₹{quote['final_total_price']}",
             "Quote ID": quote["quote_id"],
-            "Quote Validity": f"Valid for {quote['validity_minutes']} minutes (expires at {quote['expires_at']})",
+            "Quote Validity": f"Valid for {quote.get('validity_minutes', 15)} minutes (expires at {quote['expires_at']})",
             "Notes": neg_data["counter_offer_notes"],
         }
     )

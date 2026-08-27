@@ -3,8 +3,7 @@
 Clean Architecture layer: Application.
 """
 from typing import Optional
-from ...domain.entities import AuditEntry
-from ...domain.ports import IAuditRepository
+from ...domain.audit import AuditEntry, IAuditRepository
 from ..dto import AuditInspectInputDTO, AuditInspectResponseDTO, AuditEntryDTO
 
 

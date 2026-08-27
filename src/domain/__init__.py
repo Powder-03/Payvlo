@@ -1,17 +1,18 @@
-"""Domain layer module exports."""
-from .entities import (
+"""Domain layer module exports (Modular Monolith Bounded Contexts)."""
+from .common import current_utc_timestamp
+from .auth import User, IUserRepository
+from .merchant import MerchantProfile, CatalogSyncConfig, IMerchantRepository
+from .catalog import Product, ICatalogRepository, ICatalogSyncProvider
+from .checkout import (
     Address,
-    Product,
-    MerchantProfile,
-    CatalogSyncConfig,
-    User,
     QuoteItem,
     Quote,
-    PaymentRailResult,
     Order,
-    AuditEntry,
-    current_utc_timestamp,
+    PaymentRailResult,
+    IPaymentRail,
 )
+from .gatekeeper import IGatekeeper
+from .audit import AuditEntry, IAuditRepository
 from .exceptions import (
     DomainError,
     SpendCapExceededError,
@@ -22,14 +23,6 @@ from .exceptions import (
     IdempotencyReplayError,
     PaymentRailError,
     MerchantConfigError,
-)
-from .ports import (
-    ICatalogRepository,
-    IAuditRepository,
-    IGatekeeper,
-    IPaymentRail,
-    ICatalogSyncProvider,
-    IUserRepository,
 )
 
 __all__ = [
@@ -59,5 +52,5 @@ __all__ = [
     "IPaymentRail",
     "ICatalogSyncProvider",
     "IUserRepository",
+    "IMerchantRepository",
 ]
-

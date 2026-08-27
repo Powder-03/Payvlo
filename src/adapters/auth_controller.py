@@ -13,8 +13,8 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Header, Depends, status
 
-from ..domain.entities import User
-from ..domain.ports import IUserRepository, ICatalogRepository
+from ..domain.auth import User, IUserRepository
+from ..domain.catalog import ICatalogRepository
 from ..domain.exceptions import PolicyViolationError
 from ..application.dto import (
     UserSignupInputDTO,

@@ -15,9 +15,8 @@ try:
 except ImportError:
     razorpay = None
 
-from ..domain.entities import PaymentRailResult
+from ..domain.checkout import PaymentRailResult, IPaymentRail
 from ..domain.exceptions import PaymentRailError
-from ..domain.ports import IPaymentRail
 
 logger = logging.getLogger("RazorpayRails")
 

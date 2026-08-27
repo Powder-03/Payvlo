@@ -3,7 +3,7 @@
 Clean Architecture layer: Application.
 """
 from typing import List
-from ...domain.ports import ICatalogRepository
+from ...domain.catalog import ICatalogRepository
 from ...domain.exceptions import MerchantConfigError
 from ..dto import CatalogSearchInputDTO, CatalogSearchResultDTO, ProductDTO
 

@@ -6,7 +6,7 @@ Runs a background asyncio loop to automatically synchronize stores where `auto_s
 import asyncio
 import logging
 from typing import Optional
-from ..domain.ports import ICatalogRepository
+from ..domain.catalog import ICatalogRepository
 from ..application.use_cases import SyncMerchantCatalogUseCase
 
 logger = logging.getLogger("CatalogSyncScheduler")

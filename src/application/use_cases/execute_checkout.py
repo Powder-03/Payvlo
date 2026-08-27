@@ -6,13 +6,11 @@ import uuid
 import json
 from typing import Optional
 
-from ...domain.entities import Address, Order, AuditEntry, current_utc_timestamp
-from ...domain.ports import (
-    ICatalogRepository,
-    IAuditRepository,
-    IGatekeeper,
-    IPaymentRail,
-)
+from ...domain.checkout import Address, Order, IPaymentRail
+from ...domain.audit import AuditEntry, IAuditRepository
+from ...domain.common import current_utc_timestamp
+from ...domain.catalog import ICatalogRepository
+from ...domain.gatekeeper import IGatekeeper
 from ...domain.exceptions import (
     SpendCapExceededError,
     OutOfStockError,

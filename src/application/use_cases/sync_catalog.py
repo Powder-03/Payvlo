@@ -5,12 +5,10 @@ Clean Architecture layer: Application.
 import uuid
 from typing import Optional
 
-from ...domain.entities import CatalogSyncConfig, AuditEntry, current_utc_timestamp
-from ...domain.ports import (
-    ICatalogRepository,
-    IAuditRepository,
-    ICatalogSyncProvider,
-)
+from ...domain.merchant import CatalogSyncConfig
+from ...domain.audit import AuditEntry, IAuditRepository
+from ...domain.common import current_utc_timestamp
+from ...domain.catalog import ICatalogRepository, ICatalogSyncProvider
 from ...domain.exceptions import MerchantConfigError
 from ..dto import CatalogSyncTriggerDTO, CatalogSyncResponseDTO
 

@@ -15,12 +15,12 @@ from .config import settings
 from .database import init_database
 from ..adapters.redis_gatekeeper import RedisGatekeeperAdapter
 from ..adapters.razorpay_rails import RazorpayPaymentRailAdapter
-from ..adapters.mcp_controller import MCPController, create_mcp_router
+from ..adapters.mcp import MCPController, create_mcp_router
 from ..adapters.uap_controller import create_uap_router
 from ..adapters.merchant_controller import create_merchant_router
 from ..adapters.auth_controller import create_auth_router
-from ..adapters.postgres_repo import PostgresUserRepository
-from ..adapters.catalog_sync_providers import CatalogSyncDispatcher
+from ..adapters.db import PostgresUserRepository
+from ..adapters.sync_providers import CatalogSyncDispatcher
 from ..application.use_cases import (
     SearchCatalogUseCase,
     RequestQuoteUseCase,

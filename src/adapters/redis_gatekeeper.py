@@ -14,7 +14,7 @@ try:
 except ImportError:
     redis = None
 
-from ..domain.ports import IGatekeeper
+from ..domain.gatekeeper import IGatekeeper
 
 logger = logging.getLogger("Gatekeeper")
 
