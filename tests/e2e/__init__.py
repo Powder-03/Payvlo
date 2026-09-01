@@ -7,6 +7,7 @@ from . import test_05_audit_ledger
 from . import test_06_dynamic_onboarding
 from . import test_07_merchant_saas_auth
 from . import test_08_webhooks_and_scheduler
+from . import test_09_user_addresses_and_api_keys
 
 __all__ = [
     "test_01_health_and_protocols",
@@ -17,4 +18,6 @@ __all__ = [
     "test_06_dynamic_onboarding",
     "test_07_merchant_saas_auth",
     "test_08_webhooks_and_scheduler",
+    "test_09_user_addresses_and_api_keys",
 ]
+

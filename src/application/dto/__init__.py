@@ -46,6 +46,9 @@ from .auth import (
     UserLoginInputDTO,
     UserProfileDTO,
     UserAuthResponseDTO,
+    SavedAddressInputDTO,
+    SavedAddressResponseDTO,
+    UserApiKeyResponseDTO,
     MyStoreResponseDTO,
 )
 
@@ -87,5 +90,9 @@ __all__ = [
     "UserLoginInputDTO",
     "UserProfileDTO",
     "UserAuthResponseDTO",
+    "SavedAddressInputDTO",
+    "SavedAddressResponseDTO",
+    "UserApiKeyResponseDTO",
     "MyStoreResponseDTO",
 ]
+

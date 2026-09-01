@@ -11,6 +11,7 @@ from ...domain.audit import AuditEntry, IAuditRepository
 from ...domain.common import current_utc_timestamp
 from ...domain.catalog import ICatalogRepository
 from ...domain.gatekeeper import IGatekeeper
+from ...domain.auth.ports import IUserRepository
 from ...domain.exceptions import (
     SpendCapExceededError,
     OutOfStockError,
@@ -31,12 +32,14 @@ class ExecuteCheckoutUseCase:
         gatekeeper: IGatekeeper,
         payment_rail: IPaymentRail,
         default_merchant_id: str,
+        user_repo: Optional[IUserRepository] = None,
     ):
         self.catalog_repo = catalog_repo
         self.audit_repo = audit_repo
         self.gatekeeper = gatekeeper
         self.payment_rail = payment_rail
         self.default_merchant_id = default_merchant_id
+        self.user_repo = user_repo
 
     def execute(self, checkout_in: CheckoutInputDTO) -> CheckoutResponseDTO:
         merchant_id = checkout_in.merchant_id or self.default_merchant_id
@@ -46,6 +49,8 @@ class ExecuteCheckoutUseCase:
 
         user_id_hash = AuditEntry.hash_user_id(checkout_in.user_id)
         shipping_entity = None
+
+        # 0. Resolve Shipping Address (Direct Address DTO or Semantic Label Lookup)
         if checkout_in.shipping_address:
             shipping_entity = Address(
                 line1=checkout_in.shipping_address.line1,
@@ -57,6 +62,24 @@ class ExecuteCheckoutUseCase:
                 phone=checkout_in.shipping_address.phone,
                 email=checkout_in.shipping_address.email,
             )
+        elif checkout_in.address_label and self.user_repo:
+            saved = self.user_repo.get_user_address_by_label(checkout_in.user_id, checkout_in.address_label)
+            if saved:
+                line2_combined = saved.line2
+                if checkout_in.fulfillment_notes:
+                    line2_combined = f"{saved.line2} ({checkout_in.fulfillment_notes})" if saved.line2 else checkout_in.fulfillment_notes
+
+                shipping_entity = Address(
+                    line1=saved.line1,
+                    line2=line2_combined,
+                    city=saved.city,
+                    state=saved.state,
+                    postal_code=saved.postal_code,
+                    country=saved.country,
+                    phone=saved.phone,
+                    email=saved.email,
+                )
+
 
         # 1. Check Idempotency Key (24h defense in Redis Gatekeeper)
         is_new_tx, cached_json = self.gatekeeper.check_and_acquire_idempotency(

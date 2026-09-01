@@ -92,7 +92,9 @@ def create_application() -> FastAPI:
         gatekeeper=gatekeeper,
         payment_rail=payment_rail,
         default_merchant_id=active_merchant_id,
+        user_repo=user_repo,
     )
+
     inspect_audit_uc = InspectAuditUseCase(
         audit_repo=audit_repo,
     )

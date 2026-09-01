@@ -108,7 +108,7 @@ def get_mcp_tool_definitions() -> List[Dict[str, Any]]:
                     },
                     "shipping_address": {
                         "type": "object",
-                        "description": "Customer delivery address",
+                        "description": "Customer delivery address (optional if address_label is provided)",
                         "properties": {
                             "line1": {"type": "string"},
                             "line2": {"type": "string"},
@@ -119,6 +119,20 @@ def get_mcp_tool_definitions() -> List[Dict[str, Any]]:
                             "email": {"type": "string"},
                         },
                     },
+                    "address_label": {
+                        "type": "string",
+                        "description": "Shortcut label from user's address book (e.g. 'Home', 'Work', 'Hostel')",
+                    },
+                    "fulfillment_type": {
+                        "type": "string",
+                        "enum": ["DELIVERY", "DINE_IN", "PICKUP"],
+                        "default": "DELIVERY",
+                        "description": "Fulfillment method: DELIVERY, DINE_IN, or PICKUP",
+                    },
+                    "fulfillment_notes": {
+                        "type": "string",
+                        "description": "Table number or delivery notes (e.g. 'Table #4', 'Gate 2 Concourse')",
+                    },
                     "merchant_id": {
                         "type": "string",
                         "description": "Merchant ID",
@@ -126,6 +140,7 @@ def get_mcp_tool_definitions() -> List[Dict[str, Any]]:
                 },
             },
         },
+
         {
             "name": "inspect_audit_trail",
             "description": "Inspect append-only ledger entries with privacy-preserving masked PII and explainable decisions.",

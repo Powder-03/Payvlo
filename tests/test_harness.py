@@ -29,6 +29,7 @@ from tests.e2e import (
     test_06_dynamic_onboarding,
     test_07_merchant_saas_auth,
     test_08_webhooks_and_scheduler,
+    test_09_user_addresses_and_api_keys,
 )
 
 
@@ -50,10 +51,12 @@ def run_e2e_suite():
     test_06_dynamic_onboarding.run_test(client, app)
     test_07_merchant_saas_auth.run_test(client, app)
     test_08_webhooks_and_scheduler.run_test(client, app)
+    test_09_user_addresses_and_api_keys.run_test(client, app)
 
     print("\n" + "=" * 80)
-    print("🎉 ALL 16 E2E INTEGRATION, SAAS AUTH, WEBHOOKS & SCHEDULER TESTS PASSED!")
+    print("🎉 ALL 19 E2E INTEGRATION, SAAS AUTH, ADDRESS BOOK & MCP TOOL TESTS PASSED!")
     print("=" * 80)
+
 
 
 def test_e2e_flow():

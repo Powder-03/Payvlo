@@ -17,6 +17,19 @@ class Address:
     phone: Optional[str] = None
     email: Optional[str] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Returns full address dictionary for order fulfillment."""
+        return {
+            "line1": self.line1,
+            "line2": self.line2,
+            "city": self.city,
+            "state": self.state,
+            "postal_code": self.postal_code,
+            "country": self.country,
+            "phone": self.phone,
+            "email": self.email,
+        }
+
     def to_masked_dict(self) -> Dict[str, Any]:
         """Returns privacy-preserving masked address dictionary for audit logs."""
         masked_phone = None
@@ -44,6 +57,7 @@ class Address:
             "masked_phone": masked_phone,
             "masked_email": masked_email,
         }
+
 
 
 @dataclass

@@ -23,7 +23,11 @@ class CheckoutInputDTO(BaseModel):
     user_id: str = Field(..., description="Buyer identity (user ID or agent ID)")
     max_spend_budget: float = Field(..., gt=0.0, description="Authorized budget ceiling for this transaction")
     shipping_address: Optional[AddressDTO] = Field(default=None, description="Delivery physical address")
+    address_label: Optional[str] = Field(default=None, description="Address shortcut from user's address book (e.g. 'Home', 'Work')")
+    fulfillment_type: str = Field(default="DELIVERY", description="Fulfillment type: 'DELIVERY', 'DINE_IN', or 'PICKUP'")
+    fulfillment_notes: Optional[str] = Field(default=None, description="Table number, landmark or delivery notes (e.g. 'Table #4')")
     merchant_id: Optional[str] = Field(default=None, description="Merchant ID")
+
 
 
 class CheckoutResponseDTO(BaseModel):

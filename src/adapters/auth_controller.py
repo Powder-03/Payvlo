@@ -13,7 +13,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Header, Depends, status
 
-from ..domain.auth import User, IUserRepository
+from ..domain.auth import User, SavedAddress, IUserRepository
 from ..domain.catalog import ICatalogRepository
 from ..domain.exceptions import PolicyViolationError
 from ..application.dto import (
@@ -21,7 +21,11 @@ from ..application.dto import (
     UserLoginInputDTO,
     UserAuthResponseDTO,
     UserProfileDTO,
+    SavedAddressInputDTO,
+    SavedAddressResponseDTO,
+    UserApiKeyResponseDTO,
 )
+
 
 logger = logging.getLogger("AuthController")
 
@@ -242,4 +246,142 @@ def create_auth_router(
             message="Profile fetched successfully.",
         )
 
+    # ==========================================
+    # Buyer / User Address Book Management
+    # ==========================================
+    @router.get("/addresses", response_model=list[SavedAddressResponseDTO])
+    def get_addresses(user: User = Depends(get_user)):
+        """Fetch all saved addresses / locations for the authenticated user."""
+        addresses = user_repo.get_user_addresses(user.user_id)
+        return [
+            SavedAddressResponseDTO(
+                address_id=a.address_id,
+                user_id=a.user_id,
+                label=a.label,
+                line1=a.line1,
+                line2=a.line2,
+                city=a.city,
+                state=a.state,
+                postal_code=a.postal_code,
+                country=a.country,
+                phone=a.phone or "",
+                email=a.email or user.email,
+                delivery_notes=a.delivery_notes,
+                is_default=a.is_default,
+                created_at=a.created_at,
+            )
+            for a in addresses
+        ]
+
+    @router.post("/addresses", response_model=SavedAddressResponseDTO, status_code=status.HTTP_201_CREATED)
+    def create_or_update_address(
+        input_dto: SavedAddressInputDTO,
+        user: User = Depends(get_user),
+    ):
+        """Save a new address or update an existing label."""
+        address_id = f"addr_{os.urandom(6).hex()}"
+        address_entity = SavedAddress(
+            address_id=address_id,
+            user_id=user.user_id,
+            label=input_dto.label.strip(),
+            line1=input_dto.line1.strip(),
+            line2=input_dto.line2.strip() if input_dto.line2 else None,
+            city=input_dto.city.strip(),
+            state=input_dto.state.strip(),
+            postal_code=input_dto.postal_code.strip(),
+            country=input_dto.country.strip(),
+            phone=input_dto.phone.strip() if input_dto.phone else None,
+            email=input_dto.email.strip() if input_dto.email else user.email,
+            delivery_notes=input_dto.delivery_notes,
+            is_default=input_dto.is_default,
+        )
+        saved = user_repo.save_address(address_entity)
+
+        return SavedAddressResponseDTO(
+            address_id=saved.address_id,
+            user_id=saved.user_id,
+            label=saved.label,
+            line1=saved.line1,
+            line2=saved.line2,
+            city=saved.city,
+            state=saved.state,
+            postal_code=saved.postal_code,
+            country=saved.country,
+            phone=saved.phone or "",
+            email=saved.email or user.email,
+            delivery_notes=saved.delivery_notes,
+            is_default=saved.is_default,
+            created_at=saved.created_at,
+        )
+
+    @router.delete("/addresses/{address_id}")
+    def delete_address(address_id: str, user: User = Depends(get_user)):
+        """Delete a saved address from the user's address book."""
+        deleted = user_repo.delete_address(user.user_id, address_id)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found.")
+        return {"success": True, "message": "Address deleted successfully."}
+
+    # ==========================================
+    # Long-Lived MCP Server API Key Generator
+    # ==========================================
+    @router.post("/api-key", response_model=UserApiKeyResponseDTO)
+    @router.get("/api-key", response_model=UserApiKeyResponseDTO)
+    def get_or_generate_api_key(
+        user: User = Depends(get_user),
+        base_url: Optional[str] = None,
+    ):
+        """Generates a long-lived JWT API Key for MCP Server tool authorization."""
+        # Long-lived token (1 year for agent tooling)
+        payload_header = {"alg": "HS256", "typ": "JWT"}
+        payload_body = {
+            "sub": user.user_id,
+            "email": user.email,
+            "role": "buyer_agent",
+            "iat": int(time.time()),
+            "exp": int(time.time()) + (86400 * 365),
+        }
+        header_b64 = _base64url_encode(json.dumps(payload_header).encode("utf-8"))
+        payload_b64 = _base64url_encode(json.dumps(payload_body).encode("utf-8"))
+        sig_base = f"{header_b64}.{payload_b64}".encode("utf-8")
+        sig = hmac.new(JWT_SECRET_KEY.encode("utf-8"), sig_base, hashlib.sha256).digest()
+        api_token = f"{header_b64}.{payload_b64}.{_base64url_encode(sig)}"
+
+        server_base = base_url or os.getenv("PUBLIC_BASE_URL", "https://agentic-commerce-node.onrender.com")
+        mcp_sse_url = f"{server_base.rstrip('/')}/sse"
+
+        antigravity_snippet = json.dumps(
+            {
+                "mcpServers": {
+                    "payvlo-commerce": {
+                        "serverUrl": mcp_sse_url,
+                    }
+                }
+            },
+            indent=2,
+        )
+
+        claude_snippet = json.dumps(
+            {
+                "mcpServers": {
+                    "payvlo-commerce": {
+                        "url": mcp_sse_url,
+                    }
+                }
+            },
+            indent=2,
+        )
+
+        return UserApiKeyResponseDTO(
+            user_id=user.user_id,
+            email=user.email,
+            api_key=api_token,
+            token_type="Bearer",
+            mcp_server_url=mcp_sse_url,
+            expires_in_days=365,
+            antigravity_config_snippet=antigravity_snippet,
+            claude_desktop_config_snippet=claude_snippet,
+        )
+
     return router
+

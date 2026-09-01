@@ -122,6 +122,9 @@ class MCPToolExecutor:
         max_spend_budget: Optional[float] = None,
         user_authorized_budget: Optional[float] = None,
         shipping_address: Optional[Dict[str, Any]] = None,
+        address_label: Optional[str] = None,
+        fulfillment_type: str = "DELIVERY",
+        fulfillment_notes: Optional[str] = None,
         merchant_id: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
@@ -130,6 +133,11 @@ class MCPToolExecutor:
             budget = max_spend_budget if max_spend_budget is not None else user_authorized_budget
             if budget is None:
                 budget = 100000.0
+
+            # Fallback check kwargs for label/notes
+            lbl = address_label or kwargs.get("label") or kwargs.get("address_shortcut")
+            ftype = fulfillment_type or kwargs.get("fulfillment", "DELIVERY")
+            fnotes = fulfillment_notes or kwargs.get("notes") or kwargs.get("table_number")
 
             addr_dto = None
             if shipping_address:
@@ -150,6 +158,9 @@ class MCPToolExecutor:
                 user_id=user_id,
                 max_spend_budget=budget,
                 shipping_address=addr_dto,
+                address_label=lbl,
+                fulfillment_type=ftype,
+                fulfillment_notes=fnotes,
                 merchant_id=merchant_id,
             )
             order_res = self.execute_checkout_uc.execute(dto)
@@ -161,6 +172,7 @@ class MCPToolExecutor:
             return {"success": False, "error": de.to_dict()}
         except Exception as ex:
             return {"success": False, "error": {"type": "InternalError", "message": str(ex)}}
+
 
     def inspect_audit_trail(
         self,

@@ -319,7 +319,7 @@ class PostgresCatalogRepository(ICatalogRepository):
     def save_order(self, order: Order) -> None:
         with self.session_factory() as session:
             addr_json = (
-                json.dumps(order.shipping_address.to_masked_dict())
+                json.dumps(order.shipping_address.to_dict())
                 if order.shipping_address
                 else None
             )
@@ -380,19 +380,19 @@ class PostgresCatalogRepository(ICatalogRepository):
             for it in raw_items
         ]
 
-        # Reconstruct Address from persisted (masked) JSON if present
+        # Reconstruct Address from persisted JSON if present
         shipping_address = None
         if om.shipping_address_json:
             addr_data = json.loads(om.shipping_address_json)
             shipping_address = Address(
-                line1=addr_data.get("masked_line1", "***"),
-                line2=None,
+                line1=addr_data.get("line1") or addr_data.get("masked_line1", "***"),
+                line2=addr_data.get("line2"),
                 city=addr_data.get("city", ""),
                 state=addr_data.get("state", ""),
                 postal_code=addr_data.get("postal_code", ""),
                 country=addr_data.get("country", "IN"),
-                phone=addr_data.get("masked_phone"),
-                email=addr_data.get("masked_email"),
+                phone=addr_data.get("phone") or addr_data.get("masked_phone"),
+                email=addr_data.get("email") or addr_data.get("masked_email"),
             )
 
         return Order(
@@ -412,3 +412,4 @@ class PostgresCatalogRepository(ICatalogRepository):
             created_at=om.created_at,
             metadata=json.loads(om.metadata_json or "{}"),
         )
+
