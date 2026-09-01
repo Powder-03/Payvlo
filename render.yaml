@@ -10,11 +10,13 @@ services:
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.8
+        value: 3.12.8
       - key: ENVIRONMENT
         value: production
-      - key: ACTIVE_MERCHANT_ID
-        value: dominos_in
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL

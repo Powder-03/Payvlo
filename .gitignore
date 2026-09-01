@@ -54,3 +54,10 @@ powershell.cmd
 
 # Logs
 *.log
+
+# Frontend & Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
