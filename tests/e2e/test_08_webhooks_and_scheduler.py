@@ -1,6 +1,6 @@
 """E2E Tests 15, 16: Event-Driven Webhook & Background Scheduler."""
 import asyncio
-from src.infrastructure.scheduler import CatalogSyncScheduler
+from src.core.scheduler import CatalogSyncScheduler
 
 
 def run_test(client, app):

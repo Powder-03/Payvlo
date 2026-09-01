@@ -18,7 +18,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi.testclient import TestClient
-from src.infrastructure.server import create_application
+from src.main import create_application
 from tests.seed_test_data import seed_test_environment
 from tests.e2e import (
     test_01_health_and_protocols,
