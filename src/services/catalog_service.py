@@ -494,6 +494,17 @@ class CatalogService:
                 ]
 
             for it in items_data:
+                meta = it.get("metadata", {})
+                if not isinstance(meta, dict):
+                    meta = {}
+                if "rating" in it and "rating" not in meta:
+                    meta["rating"] = it["rating"]
+                if "review_count" in it and "review_count" not in meta:
+                    meta["review_count"] = it["review_count"]
+                
+                item_disc = it.get("max_discount_pct") or it.get("max_discount_percentage")
+                disc_pct = float(item_disc) if item_disc is not None else merchant.max_discount_percentage
+
                 p_dto = DirectProductInputSchema(
                     sku=str(it.get(sku_k, f"SKU-{synced_count+1}")),
                     title=str(it.get(title_k, "Product")),
@@ -501,7 +512,8 @@ class CatalogService:
                     price_inr=float(it.get(price_k, 100.0)),
                     inventory_count=int(it.get(inv_k, 10)),
                     category=str(it.get(cat_k, merchant.category)),
-                    max_discount_percentage=merchant.max_discount_percentage,
+                    max_discount_percentage=disc_pct,
+                    metadata=meta,
                 )
                 self.save_product(p_dto, merchant_id)
                 synced_count += 1

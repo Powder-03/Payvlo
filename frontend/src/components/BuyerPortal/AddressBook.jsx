@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Plus, Trash2, Home, Briefcase, Building, Check, Phone, Mail, FileText } from 'lucide-react';
+import { MapPin, Plus, Trash2, Home, Briefcase, Building, Check, Phone, Mail, FileText, X } from 'lucide-react';
 import { api } from '../../services/api';
 
 export function AddressBook({ user }) {
@@ -38,14 +38,20 @@ export function AddressBook({ user }) {
 
   const handleSaveAddress = async (e) => {
     e.preventDefault();
-    setSaving(true);
     setError('');
+
+    if (!line2.trim()) {
+      setError('Area / Landmark is required for accurate delivery.');
+      return;
+    }
+
+    setSaving(true);
 
     try {
       await api.saveAddress({
         label,
         line1,
-        line2: line2 || undefined,
+        line2: line2.trim(),
         city,
         state,
         postal_code: postalCode,
@@ -208,127 +214,151 @@ export function AddressBook({ user }) {
       {/* Add Address Modal */}
       {showAddModal && (
         <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '6px' }}>
-              Add Saved Location
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>
-              Create a named shortcut for your home, office, or frequent delivery point.
-            </p>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', marginBottom: '4px' }}>
+                  Add Saved Location
+                </h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  Create a named shortcut for your home, office, or frequent delivery point.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '6px'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
 
             {error && (
-              <div style={{ padding: '8px 12px', background: 'rgba(244, 63, 94, 0.15)', color: '#F43F5E', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
+              <div style={{ padding: '8px 12px', background: 'rgba(244, 63, 94, 0.15)', color: '#F43F5E', borderRadius: '8px', fontSize: '13px', marginBottom: '14px', flexShrink: 0 }}>
                 {error}
               </div>
             )}
 
-            <form onSubmit={handleSaveAddress}>
-              <div className="form-group">
-                <label>Address Label / Shortcut (e.g. Home, Work, Gym)</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="e.g. Home"
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Street Address & Flat / Building</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Flat 402, Palm Grove Apartments, 100ft Road"
-                  value={line1}
-                  onChange={(e) => setLine1(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Area / Landmark (Optional)</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Near Metro Pillar 84, Indiranagar"
-                  value={line2}
-                  onChange={(e) => setLine2(e.target.value)}
-                />
-              </div>
-
-              <div className="form-row">
+            <form onSubmit={handleSaveAddress} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div className="modal-scroll-body">
                 <div className="form-group">
-                  <label>City</label>
+                  <label>Address Label / Shortcut (e.g. Home, Work, Gym) <span style={{ color: '#F43F5E' }}>*</span></label>
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Bengaluru"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g. Home"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label>State / PIN</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <label>Street Address & Flat / Building <span style={{ color: '#F43F5E' }}>*</span></label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Flat 402, Palm Grove Apartments, 100ft Road"
+                    value={line1}
+                    onChange={(e) => setLine1(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    Area / Landmark <span style={{ color: '#F43F5E' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Near Metro Pillar 84, Opp. Starbucks"
+                    value={line2}
+                    onChange={(e) => setLine2(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>City <span style={{ color: '#F43F5E' }}>*</span></label>
                     <input
                       type="text"
                       className="form-control"
-                      placeholder="KA"
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      required
-                    />
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="560038"
-                      value={postalCode}
-                      onChange={(e) => setPostalCode(e.target.value)}
+                      placeholder="Bengaluru"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
                       required
                     />
                   </div>
+                  <div className="form-group">
+                    <label>State / PIN <span style={{ color: '#F43F5E' }}>*</span></label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="KA"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        required
+                      />
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="560038"
+                        value={postalCode}
+                        onChange={(e) => setPostalCode(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Phone Number for Delivery</label>
+                  <input
+                    type="tel"
+                    className="form-control"
+                    placeholder="+919876543210"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Delivery / Gate Notes</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Leave with security at Gate 2"
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', marginBottom: '8px' }}>
+                  <input
+                    type="checkbox"
+                    id="isDefaultCheck"
+                    checked={isDefault}
+                    onChange={(e) => setIsDefault(e.target.checked)}
+                    style={{ accentColor: '#38BDF8', width: '16px', height: '16px' }}
+                  />
+                  <label htmlFor="isDefaultCheck" style={{ fontSize: '13px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    Set as default address for AI agent checkouts
+                  </label>
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Phone Number for Delivery</label>
-                <input
-                  type="tel"
-                  className="form-control"
-                  placeholder="+919876543210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Delivery / Gate Notes (Optional)</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Leave with security at Gate 2"
-                  value={deliveryNotes}
-                  onChange={(e) => setDeliveryNotes(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-                <input
-                  type="checkbox"
-                  id="isDefaultCheck"
-                  checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
-                  style={{ accentColor: '#38BDF8', width: '16px', height: '16px' }}
-                />
-                <label htmlFor="isDefaultCheck" style={{ fontSize: '13px', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                  Set as default address for AI agent checkouts
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              {/* Sticky Action Footer */}
+              <div className="modal-sticky-footer">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
