@@ -154,20 +154,18 @@ def create_application() -> FastAPI:
     # Mount Unified API Router
     app.include_router(api_router)
 
-    # Serve Embedded Dashboard HTML
-    dashboard_candidates = [
-        os.path.join(os.path.dirname(__file__), "dashboard.html"),
-        os.path.join(os.path.dirname(__file__), "infrastructure", "dashboard.html"),
-    ]
-
-    @app.get("/", response_class=HTMLResponse)
-    @app.get("/portal", response_class=HTMLResponse)
-    def merchant_portal():
-        for candidate in dashboard_candidates:
-            if os.path.exists(candidate):
-                with open(candidate, "r", encoding="utf-8") as f:
-                    return f.read()
-        return "<h1>Payvlo Merchant Portal</h1><p>Dashboard template not found.</p>"
+    # Root API Gateway Info Endpoint
+    @app.get("/")
+    def api_root():
+        return {
+            "service": "Payvlo Universal Agentic Commerce Node",
+            "status": "healthy",
+            "version": "1.0.0",
+            "docs_url": "/docs",
+            "health_check": "/healthz",
+            "agent_card": "/.well-known/agent.json",
+            "mcp_sse": "/sse",
+        }
 
     # Expose helper references for application state & test harness
     app.state.engine = engine

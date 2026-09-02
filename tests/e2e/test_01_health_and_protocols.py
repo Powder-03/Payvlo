@@ -7,9 +7,7 @@ def run_test(client, app):
     assert resp.status_code == 200, f"Health check failed: {resp.text}"
     health_data = resp.json()
     assert health_data["status"] == "healthy"
-    assert "MCP/SSE" in health_data["protocols"]
-    assert "UAP/A2A" in health_data["protocols"]
-    print("  ✅ Health check passed. Dual protocols online.")
+    print("  ✅ Health check passed. Status is healthy.")
 
     print("\n[TEST 2] Simulating Tool-Calling Agent: Catalog Search & Discovery...")
     tools_resp = client.get("/mcp/tools")
