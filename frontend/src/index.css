@@ -196,14 +196,20 @@ h1, h2, h3, h4, h5, h6 {
 /* Modal Overlay */
 .modal-backdrop {
   position: fixed;
-  inset: 0;
-  background: rgba(3, 7, 18, 0.85);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(3, 7, 18, 0.88);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: 24px 16px;
+  z-index: 999999;
+  padding: 20px;
   overflow-y: auto;
   animation: fadeIn 0.2s ease;
 }
@@ -211,16 +217,17 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
   max-width: 520px;
   background: #0F172A;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 20px;
   padding: 24px 28px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.95);
   animation: scaleUp 0.2s ease;
   max-height: min(90vh, 760px);
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  z-index: 1000000;
 }
 
 .modal-header {

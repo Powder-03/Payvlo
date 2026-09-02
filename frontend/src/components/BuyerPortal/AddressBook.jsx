@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MapPin, Plus, Trash2, Home, Briefcase, Building, Check, Phone, Mail, FileText, X } from 'lucide-react';
 import { api } from '../../services/api';
 
@@ -23,6 +24,19 @@ export function AddressBook({ user }) {
   useEffect(() => {
     fetchAddresses();
   }, []);
+
+  const resetForm = () => {
+    setLabel('Home');
+    setLine1('');
+    setLine2('');
+    setCity('Bengaluru');
+    setState('KA');
+    setPostalCode('560038');
+    setPhone('');
+    setDeliveryNotes('');
+    setIsDefault(false);
+    setError('');
+  };
 
   const fetchAddresses = async () => {
     setLoading(true);
@@ -78,18 +92,6 @@ export function AddressBook({ user }) {
     } catch (err) {
       alert(err.message || 'Failed to delete address');
     }
-  };
-
-  const resetForm = () => {
-    setLabel('Home');
-    setLine1('');
-    setLine2('');
-    setCity('Bengaluru');
-    setState('KA');
-    setPostalCode('560038');
-    setPhone('');
-    setDeliveryNotes('');
-    setIsDefault(false);
   };
 
   const getLabelIcon = (lbl) => {
@@ -211,8 +213,8 @@ export function AddressBook({ user }) {
         </div>
       )}
 
-      {/* Add Address Modal */}
-      {showAddModal && (
+      {/* Add Address Modal rendered via React Portal directly into document.body */}
+      {showAddModal && typeof document !== 'undefined' && createPortal(
         <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
             <div className="modal-header">
@@ -376,7 +378,8 @@ export function AddressBook({ user }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
