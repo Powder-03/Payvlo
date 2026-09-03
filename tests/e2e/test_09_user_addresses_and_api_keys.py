@@ -21,7 +21,7 @@ def run_test(client, app):
     user_id = buyer_data["user"]["user_id"]
     print(f"  ✅ Buyer registered (User ID: {user_id}). JWT issued.")
 
-    # 1. Generate MCP API Key
+    # 1. Generate MCP API Key & Full Configuration
     api_key_resp = client.get(
         "/api/v1/auth/api-key",
         headers={"Authorization": f"Bearer {auth_token}"},
@@ -30,7 +30,31 @@ def run_test(client, app):
     api_key_data = api_key_resp.json()
     assert api_key_data["api_key"] != ""
     assert "payvlo-commerce" in api_key_data["antigravity_config_snippet"]
-    print(f"  ✅ MCP API Key generated successfully (Expires in {api_key_data['expires_in_days']} days).")
+    assert "Authorization" in api_key_data["antigravity_config_snippet"]
+    assert api_key_data["api_key"] in api_key_data["antigravity_config_snippet"]
+    assert "Authorization" in api_key_data["claude_desktop_config_snippet"]
+    assert api_key_data["api_key"] in api_key_data["claude_desktop_config_snippet"]
+    assert api_key_data["cursor_config_snippet"] is not None
+    assert api_key_data["api_key"] in api_key_data["cursor_config_snippet"]
+    print(f"  ✅ MCP API Key & Full Auth Config generated successfully (Expires in {api_key_data['expires_in_days']} days).")
+
+    # 1b. Test Configuration File Download Endpoint
+    dl_antigravity = client.get(
+        "/api/v1/auth/mcp-config/download?client=antigravity",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert dl_antigravity.status_code == 200
+    assert "mcp_config.json" in dl_antigravity.headers.get("content-disposition", "")
+    assert api_key_data["api_key"] in dl_antigravity.text
+
+    dl_claude = client.get(
+        "/api/v1/auth/mcp-config/download?client=claude",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert dl_claude.status_code == 200
+    assert "claude_desktop_config.json" in dl_claude.headers.get("content-disposition", "")
+    assert api_key_data["api_key"] in dl_claude.text
+    print("  ✅ Downloadable MCP configuration files verified for Antigravity & Claude Desktop.")
 
     print("\n[TEST 18] Address Book Management (Saved Shortcuts & Dynamic Locations)...")
     # 2. Add 'Home' Saved Address

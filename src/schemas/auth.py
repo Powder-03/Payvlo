@@ -103,6 +103,9 @@ class UserApiKeyResponseSchema(BaseModel):
     expires_in_days: int = 365
     antigravity_config_snippet: str
     claude_desktop_config_snippet: str
+    cursor_config_snippet: Optional[str] = None
+    headers: Optional[dict] = None
+    full_config: Optional[dict] = None
 
 
 UserApiKeyResponseDTO = UserApiKeyResponseSchema

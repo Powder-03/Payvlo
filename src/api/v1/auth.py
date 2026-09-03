@@ -1,6 +1,6 @@
 """Authentication & User Address Book API Router."""
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Header, Request, status
+from fastapi import APIRouter, HTTPException, Header, Request, Response, status
 
 from ...schemas.auth import (
     UserSignupInputSchema,
@@ -143,3 +143,44 @@ def get_or_generate_api_key(
             detail="Authenticated user account not found.",
         )
     return auth_service.generate_agent_api_key(user.user_id, user.email, base_url=base_url)
+
+
+@router.get("/mcp-config/download")
+def download_mcp_config(
+    request: Request,
+    client: str = "antigravity",
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = None,
+    base_url: Optional[str] = None,
+):
+    """Downloads the full, pre-configured MCP connection JSON file with API Bearer token."""
+    auth_header = authorization or (f"Bearer {token}" if token else None)
+    user_id = get_current_user_id(auth_header)
+    auth_service = request.app.state.auth_service
+    user = auth_service.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user account not found.",
+        )
+    key_data = auth_service.generate_agent_api_key(user.user_id, user.email, base_url=base_url)
+
+    client_lower = client.lower().strip()
+    if client_lower in ("claude", "claude_desktop", "claude-desktop"):
+        content = key_data.claude_desktop_config_snippet
+        filename = "claude_desktop_config.json"
+    elif client_lower in ("cursor", "windsurf", "vscode"):
+        content = key_data.cursor_config_snippet or key_data.claude_desktop_config_snippet
+        filename = "mcp.json"
+    else:
+        content = key_data.antigravity_config_snippet
+        filename = "mcp_config.json"
+
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache",
+        },
+    )

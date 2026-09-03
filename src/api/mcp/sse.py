@@ -9,15 +9,17 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from ...schemas.mcp import get_mcp_tool_definitions
+from ...services.auth_service import decode_access_token
 from .tools import execute_tool_call
 
 logger = logging.getLogger("MCPSSETransport")
 router = APIRouter(tags=["MCP Interface"])
 
 sse_sessions: Dict[str, asyncio.Queue] = {}
+sse_user_sessions: Dict[str, Dict[str, Any]] = {}
 
 
-def process_rpc_message(app, body: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], int]:
+def process_rpc_message(app, body: Dict[str, Any], user_id: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], int]:
     """Processes incoming JSON-RPC 2.0 message and returns (response_dict, status_code)."""
     msg_id = body.get("id")
     method = body.get("method")
@@ -51,6 +53,8 @@ def process_rpc_message(app, body: Dict[str, Any]) -> Tuple[Optional[Dict[str, A
     elif method == "tools/call":
         tool_name = params.get("name")
         arguments = params.get("arguments") or {}
+        if user_id and not arguments.get("user_id"):
+            arguments["user_id"] = user_id
         tool_res = execute_tool_call(app, tool_name, arguments)
         return {
             "jsonrpc": "2.0",
@@ -75,10 +79,27 @@ def process_rpc_message(app, body: Dict[str, Any]) -> Tuple[Optional[Dict[str, A
 
 @router.get("/sse")
 async def sse_endpoint(request: Request):
-    """Official FastMCP SSE Transport endpoint. Emits endpoint event and streams JSON-RPC responses."""
+    """Official FastMCP SSE Transport endpoint with Bearer token authentication."""
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    token = request.query_params.get("token") or request.query_params.get("api_key")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+
+    session_user: Dict[str, Any] = {}
+    if token:
+        payload = decode_access_token(token)
+        if payload:
+            session_user = {
+                "user_id": payload.get("sub"),
+                "email": payload.get("email"),
+                "role": payload.get("role"),
+            }
+
     session_id = uuid.uuid4().hex
     queue: asyncio.Queue = asyncio.Queue()
     sse_sessions[session_id] = queue
+    if session_user:
+        sse_user_sessions[session_id] = session_user
 
     async def event_generator():
         try:
@@ -98,6 +119,7 @@ async def sse_endpoint(request: Request):
                     yield f": ping {now_str}\n\n"
         finally:
             sse_sessions.pop(session_id, None)
+            sse_user_sessions.pop(session_id, None)
 
     return StreamingResponse(
         event_generator(),
@@ -113,13 +135,28 @@ async def sse_endpoint(request: Request):
 
 @router.post("/messages")
 async def handle_mcp_messages(request: Request, sessionId: Optional[str] = None):
-    """Official MCP JSON-RPC 2.0 Message Ingress."""
+    """Official MCP JSON-RPC 2.0 Message Ingress with automatic session user context."""
     try:
         body = await request.json()
     except Exception:
         return Response(status_code=400, content="Invalid JSON")
 
-    response, status_code = process_rpc_message(request.app, body)
+    # Resolve authenticated user from session or header
+    user_id = None
+    if sessionId and sessionId in sse_user_sessions:
+        user_id = sse_user_sessions[sessionId].get("user_id")
+
+    if not user_id:
+        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+        token = request.query_params.get("token") or request.query_params.get("api_key")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
+        if token:
+            payload = decode_access_token(token)
+            if payload:
+                user_id = payload.get("sub")
+
+    response, status_code = process_rpc_message(request.app, body, user_id=user_id)
 
     # If connected via active SSE session, stream message back on SSE channel
     if sessionId and sessionId in sse_sessions and response:

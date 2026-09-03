@@ -310,19 +310,40 @@ class AuthService:
             return True
 
     def generate_agent_api_key(self, user_id: str, email: str, base_url: Optional[str] = None) -> UserApiKeyResponseSchema:
-        """Generates a 1-year signed Agent API Key for MCP / A2A clients."""
+        """Generates a 1-year signed Agent API Key for MCP / A2A clients with full connection config."""
         api_token = create_access_token(user_id, email, role="buyer_agent", exp_seconds=86400 * 365)
         server_base = base_url or settings.PUBLIC_BASE_URL
         mcp_sse_url = f"{server_base.rstrip('/')}/sse"
+        auth_headers = {"Authorization": f"Bearer {api_token}"}
 
-        antigravity_snippet = json.dumps(
-            {"mcpServers": {"payvlo-commerce": {"serverUrl": mcp_sse_url}}},
-            indent=2,
-        )
-        claude_snippet = json.dumps(
-            {"mcpServers": {"payvlo-commerce": {"url": mcp_sse_url}}},
-            indent=2,
-        )
+        antigravity_config = {
+            "mcpServers": {
+                "payvlo-commerce": {
+                    "serverUrl": mcp_sse_url,
+                    "headers": auth_headers,
+                }
+            }
+        }
+        claude_config = {
+            "mcpServers": {
+                "payvlo-commerce": {
+                    "url": mcp_sse_url,
+                    "headers": auth_headers,
+                }
+            }
+        }
+        cursor_config = {
+            "mcpServers": {
+                "payvlo-commerce": {
+                    "url": mcp_sse_url,
+                    "headers": auth_headers,
+                }
+            }
+        }
+
+        antigravity_snippet = json.dumps(antigravity_config, indent=2)
+        claude_snippet = json.dumps(claude_config, indent=2)
+        cursor_snippet = json.dumps(cursor_config, indent=2)
 
         return UserApiKeyResponseSchema(
             user_id=user_id,
@@ -333,4 +354,7 @@ class AuthService:
             expires_in_days=365,
             antigravity_config_snippet=antigravity_snippet,
             claude_desktop_config_snippet=claude_snippet,
+            cursor_config_snippet=cursor_snippet,
+            headers=auth_headers,
+            full_config=antigravity_config,
         )
