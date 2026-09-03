@@ -408,7 +408,20 @@ class CatalogService:
                 if variants:
                     for v in variants:
                         sku = v.get("sku") or f"{merchant_id[:4].upper()}-{v.get('id', 'VAR')}"
-                        price = float(v.get("price", 100.0))
+                        price_raw = v.get("price")
+                        try:
+                            price = float(price_raw) if price_raw is not None else None
+                        except (ValueError, TypeError):
+                            price = None
+
+                        if price is None or price <= 0.0:
+                            logger.warning(
+                                f"Merchant '{merchant_id}': Skipping Shopify variant '{sku}'. Missing/invalid price: {price_raw}"
+                            )
+                            skipped_count += 1
+                            skipped_reasons.append(f"Variant '{sku}': missing/invalid price")
+                            continue
+
                         inv = int(v.get("inventory_quantity", 10))
                         var_title = f"{title} - {v.get('title')}" if v.get("title") and v.get("title") != "Default Title" else title
                         p_dto = DirectProductInputSchema(
@@ -424,11 +437,25 @@ class CatalogService:
                         synced_count += 1
                 else:
                     sku = item.get("sku") or f"{merchant_id[:4].upper()}-{item.get('id', 'ITEM')}"
+                    price_raw = item.get("price")
+                    try:
+                        price = float(price_raw) if price_raw is not None else None
+                    except (ValueError, TypeError):
+                        price = None
+
+                    if price is None or price <= 0.0:
+                        logger.warning(
+                            f"Merchant '{merchant_id}': Skipping Shopify product '{sku}'. Missing/invalid price: {price_raw}"
+                        )
+                        skipped_count += 1
+                        skipped_reasons.append(f"Product '{sku}': missing/invalid price")
+                        continue
+
                     p_dto = DirectProductInputSchema(
                         sku=sku,
                         title=title,
                         description=body_html[:300],
-                        price_inr=float(item.get("price", 100.0)),
+                        price_inr=price,
                         inventory_count=int(item.get("inventory", 10)),
                         category=p_type,
                         max_discount_percentage=merchant.max_discount_percentage,
@@ -505,12 +532,72 @@ class CatalogService:
                 item_disc = it.get("max_discount_pct") or it.get("max_discount_percentage")
                 disc_pct = float(item_disc) if item_disc is not None else merchant.max_discount_percentage
 
+                raw_sku = (
+                    it.get(sku_k)
+                    or it.get("product_code")
+                    or it.get("item_code")
+                    or it.get("sku")
+                    or it.get("code")
+                    or f"SKU-{synced_count+1}"
+                )
+                raw_title = (
+                    it.get(title_k)
+                    or it.get("item_title")
+                    or it.get("title")
+                    or it.get("name")
+                    or it.get("product_name")
+                )
+
+                # Strict price resolution (fail-closed, NO hardcoded default)
+                raw_price = (
+                    it.get(price_k)
+                    or it.get("mrp_inr")
+                    or it.get("price_inr")
+                    or it.get("mrp")
+                    or it.get("price")
+                )
+
+                try:
+                    price_val = float(raw_price) if raw_price is not None else None
+                except (ValueError, TypeError):
+                    price_val = None
+
+                if price_val is None or price_val <= 0.0:
+                    logger.warning(
+                        f"Merchant '{merchant_id}': Skipping custom API product '{raw_sku}'. "
+                        f"Missing or non-positive price: {raw_price}."
+                    )
+                    skipped_count += 1
+                    skipped_reasons.append(f"Product '{raw_sku}': unresolvable or non-positive price ({raw_price})")
+                    continue
+
+                if not raw_title or str(raw_title).strip() == "":
+                    logger.warning(f"Merchant '{merchant_id}': Skipping product '{raw_sku}'. Missing title.")
+                    skipped_count += 1
+                    skipped_reasons.append(f"Product '{raw_sku}': missing title")
+                    continue
+
+                raw_inv = (
+                    it.get(inv_k)
+                    or it.get("stock_units")
+                    or it.get("stock_qty")
+                    or it.get("stock")
+                    or it.get("inventory")
+                    or 10
+                )
+                raw_desc = (
+                    it.get(desc_k)
+                    or it.get("description")
+                    or it.get("desc")
+                    or ""
+                )
+
                 p_dto = DirectProductInputSchema(
-                    sku=str(it.get(sku_k, f"SKU-{synced_count+1}")),
-                    title=str(it.get(title_k, "Product")),
-                    description=str(it.get(desc_k, "")),
-                    price_inr=float(it.get(price_k, 100.0)),
-                    inventory_count=int(it.get(inv_k, 10)),
+                    sku=str(raw_sku),
+                    title=str(raw_title),
+                    description=str(raw_desc),
+                    price_inr=price_val,
+                    inventory_count=int(raw_inv),
                     category=str(it.get(cat_k, merchant.category)),
                     max_discount_percentage=disc_pct,
                     metadata=meta,
@@ -521,11 +608,39 @@ class CatalogService:
         else:
             if raw_payload:
                 for item in raw_payload:
+                    price_raw = (
+                        item.get("price")
+                        or item.get("price_inr")
+                        or item.get("mrp_inr")
+                        or item.get("mrp")
+                    )
+                    try:
+                        price_val = float(price_raw) if price_raw is not None else None
+                    except (ValueError, TypeError):
+                        price_val = None
+
+                    sku_val = item.get("sku") or item.get("id", f"SKU-{synced_count+1}")
+                    title_val = item.get("title") or item.get("name")
+
+                    if price_val is None or price_val <= 0.0:
+                        logger.warning(
+                            f"Merchant '{merchant_id}': Skipping raw item '{sku_val}'. Missing/invalid price: {price_raw}."
+                        )
+                        skipped_count += 1
+                        skipped_reasons.append(f"Product '{sku_val}': missing/invalid price")
+                        continue
+
+                    if not title_val or str(title_val).strip() == "":
+                        logger.warning(f"Merchant '{merchant_id}': Skipping raw item '{sku_val}'. Missing title.")
+                        skipped_count += 1
+                        skipped_reasons.append(f"Product '{sku_val}': missing title")
+                        continue
+
                     p_dto = DirectProductInputSchema(
-                        sku=item.get("sku") or item.get("id", f"SKU-{synced_count+1}"),
-                        title=item.get("title") or item.get("name", "Product"),
+                        sku=sku_val,
+                        title=title_val,
                         description=item.get("description", ""),
-                        price_inr=float(item.get("price") or item.get("price_inr", 100.0)),
+                        price_inr=price_val,
                         inventory_count=int(item.get("inventory") or item.get("inventory_count", 10)),
                         category=item.get("category", merchant.category),
                         max_discount_percentage=float(item.get("max_discount_percentage", 0.0)),
@@ -534,12 +649,43 @@ class CatalogService:
                     synced_count += 1
 
         now_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        # Fail closed if zero valid products could be ingested
+        if synced_count == 0 and skipped_count > 0:
+            err_msg = (
+                f"Catalog sync failed: All {skipped_count} products were rejected due to unresolvable or non-positive prices. "
+                f"Please review your endpoint schema or field_mapping configuration."
+            )
+            logger.error(f"Merchant '{merchant_id}': {err_msg}")
+            return CatalogSyncResponseSchema(
+                success=False,
+                merchant_id=merchant_id,
+                synced_products_count=0,
+                provider=provider,
+                sync_status="FAILED",
+                last_synced_at=now_str,
+                error_message=err_msg,
+                message=f"Sync failed for '{merchant_id}': 0 valid priced products found ({skipped_count} rejected).",
+            )
+
+        sync_status = "SUCCESS" if skipped_count == 0 else "PARTIAL_SUCCESS"
+        err_msg = (
+            f"{skipped_count} items skipped due to invalid price: {'; '.join(skipped_reasons[:3])}"
+            if skipped_count > 0
+            else None
+        )
+
         return CatalogSyncResponseSchema(
             success=True,
             merchant_id=merchant_id,
             synced_products_count=synced_count,
             provider=provider,
-            sync_status="SUCCESS",
+            sync_status=sync_status,
             last_synced_at=now_str,
-            message=f"Synced {synced_count} products for merchant '{merchant_id}'.",
+            error_message=err_msg,
+            message=(
+                f"Synced {synced_count} products for merchant '{merchant_id}'."
+                if skipped_count == 0
+                else f"Synced {synced_count} products ({skipped_count} skipped due to invalid prices) for merchant '{merchant_id}'."
+            ),
         )

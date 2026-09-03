@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "payvlo-commerce": {
+      "serverUrl": "https://payvlo.onrender.com/sse",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJzdWIiOiAidXNyX2I4YTI4OTBiNmUzMCIsICJlbWFpbCI6ICJ0ZXN0ZXJAZ21haWwuY29tIiwgInJvbGUiOiAiYnV5ZXJfYWdlbnQiLCAiaWF0IjogMTc4ODQ1MTc4NSwgImV4cCI6IDE4MTk5ODc3ODV9.aLr5WPtduMWLwDDQEmNDc9g0OMiKLvQxnlgy9O2szTs"
+      }
+    }
+  }
+}

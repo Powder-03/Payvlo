@@ -272,6 +272,13 @@ class CheckoutService:
             "quote_id": quote.quote_id,
             "merchant_id": merchant_id,
         }
+        if shipping_addr_dict:
+            if shipping_addr_dict.get("recipient_name"):
+                notes["recipient_name"] = shipping_addr_dict["recipient_name"]
+            if shipping_addr_dict.get("phone"):
+                notes["phone"] = shipping_addr_dict["phone"]
+            if shipping_addr_dict.get("email"):
+                notes["email"] = shipping_addr_dict["email"]
 
         try:
             rail_result = self.payment_service.create_order(

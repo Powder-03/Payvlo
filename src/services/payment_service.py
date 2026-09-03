@@ -68,11 +68,51 @@ class PaymentService:
 
         # If live client is active
         if self.client:
+            # 1. Attempt to create a public hosted Razorpay Payment Link (https://rzp.io/...)
+            try:
+                link_payload = {
+                    "amount": amount_in_paise,
+                    "currency": currency.upper(),
+                    "reference_id": order_id,
+                    "description": f"Payvlo Checkout for Order {order_id}",
+                    "notify": {"sms": False, "email": False},
+                }
+                cust = {}
+                if notes:
+                    if notes.get("recipient_name"):
+                        cust["name"] = str(notes["recipient_name"])
+                    if notes.get("phone"):
+                        cust["contact"] = str(notes["phone"])
+                    if notes.get("email"):
+                        cust["email"] = str(notes["email"])
+                if cust:
+                    link_payload["customer"] = cust
+
+                rzp_link = self.client.payment_link.create(data=link_payload)
+                rail_id = rzp_link.get("order_id") or rzp_link.get("id")
+                payment_link = rzp_link.get("short_url")
+                logger.info(f"Created live Razorpay Payment Link: {payment_link}")
+                return {
+                    "payment_rail_id": rail_id,
+                    "payment_link": payment_link,
+                    "payment_status": rzp_link.get("status", "created"),
+                    "amount_in_subunit": amount_in_paise,
+                    "currency": currency,
+                    "raw_response": rzp_link,
+                }
+            except Exception as plink_err:
+                logger.warning(
+                    f"Hosted Payment Link creation skipped/failed ({plink_err}). Falling back to standard order."
+                )
+
+            # 2. Fallback to standard order.create
             try:
                 rzp_order = self.client.order.create(data=order_payload)
                 rail_id = rzp_order.get("id")
                 payment_link = (
-                    f"https://api.razorpay.com/v1/checkout/embedded?order_id={rail_id}"
+                    f"https://sandbox.razorpay.com/v1/checkout/test_pay?order_id={rail_id}&amount={amount_in_paise}"
+                    if self.is_sandbox
+                    else f"https://api.razorpay.com/v1/checkout/embedded?order_id={rail_id}"
                 )
                 return {
                     "payment_rail_id": rail_id,
