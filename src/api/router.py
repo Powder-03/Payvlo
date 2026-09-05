@@ -10,6 +10,8 @@ from .mcp.tools import router as mcp_tools_router
 from .uap.discovery import router as uap_discovery_router
 from .uap.protocol import router as uap_protocol_router
 
+from .v1.external_stores import router as external_stores_router
+
 api_router = APIRouter()
 
 # Mount all protocol & REST routers
@@ -17,6 +19,7 @@ api_router.include_router(health_router)
 api_router.include_router(auth_router)
 api_router.include_router(merchants_router)
 api_router.include_router(webhooks_router)
+api_router.include_router(external_stores_router)
 api_router.include_router(mcp_sse_router)
 api_router.include_router(mcp_tools_router)
 api_router.include_router(uap_discovery_router)
