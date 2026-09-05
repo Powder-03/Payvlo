@@ -369,6 +369,8 @@ class CatalogService:
 
         provider = (sync_cfg.provider if sync_cfg else "direct").lower()
         synced_count = 0
+        skipped_count = 0
+        skipped_reasons = []
 
         if provider == "shopify":
             products_data = []
@@ -379,66 +381,38 @@ class CatalogService:
                 if not url.endswith(".json"):
                     url = f"{url}/products.json"
                 try:
-                    with httpx.Client(timeout=5.0, follow_redirects=True) as client:
+                    with httpx.Client(timeout=10.0, follow_redirects=True) as client:
                         resp = client.get(url)
-                        if resp.status_code == 200:
-                            products_data = resp.json().get("products", [])
-                except Exception:
-                    pass
+                        if resp.status_code != 200:
+                            raise MerchantConfigError(
+                                merchant_id,
+                                f"Shopify catalog sync failed: Endpoint returned HTTP {resp.status_code} ({url})"
+                            )
+                        data = resp.json()
+                        products_data = data.get("products", [])
+                except httpx.RequestError as e:
+                    raise MerchantConfigError(
+                        merchant_id,
+                        f"Shopify catalog sync failed: Unable to connect to '{url}' ({e})"
+                    )
+                except Exception as e:
+                    if isinstance(e, MerchantConfigError):
+                        raise e
+                    raise MerchantConfigError(
+                        merchant_id,
+                        f"Shopify catalog sync failed: Invalid response from '{url}' ({e})"
+                    )
+            else:
+                raise MerchantConfigError(
+                    merchant_id,
+                    "Shopify catalog sync requires a valid endpoint_url in store sync configuration."
+                )
 
             if not products_data:
-                # Standard simulated Shopify items for tests/demo
-                m_prefix = merchant.merchant_id.upper()[:4]
-                products_data = [
-                    {
-                        "id": 8912345678,
-                        "title": f"{merchant.merchant_name} Premium Cotton Crewneck",
-                        "body_html": "Crafted from 100% organic combed cotton.",
-                        "product_type": "Apparel",
-                        "tags": "cotton, t-shirt, organic",
-                        "variants": [
-                            {
-                                "id": 41234567890,
-                                "sku": f"{m_prefix}-TSH-BLK-M",
-                                "title": "Black / M",
-                                "price": "1499.00",
-                                "inventory_quantity": 40,
-                            }
-                        ],
-                    },
-                    {
-                        "id": 8912345679,
-                        "title": f"{merchant.merchant_name} Relaxed Fit Chinos",
-                        "body_html": "Comfort-stretch cotton twill chinos.",
-                        "product_type": "Apparel",
-                        "tags": "chinos, pants, casual",
-                        "variants": [
-                            {
-                                "id": 41234567891,
-                                "sku": f"{m_prefix}-CHN-BEI-32",
-                                "title": "Beige / 32",
-                                "price": "2499.00",
-                                "inventory_quantity": 25,
-                            }
-                        ],
-                    },
-                    {
-                        "id": 8912345680,
-                        "title": f"{merchant.merchant_name} Canvas Utility Backpack",
-                        "body_html": "Water-resistant heavy duty canvas backpack.",
-                        "product_type": "Accessories",
-                        "tags": "bag, canvas, accessories",
-                        "variants": [
-                            {
-                                "id": 41234567892,
-                                "sku": f"{m_prefix}-BAG-OLV",
-                                "title": "Olive Green",
-                                "price": "3299.00",
-                                "inventory_quantity": 15,
-                            }
-                        ],
-                    },
-                ]
+                raise MerchantConfigError(
+                    merchant_id,
+                    f"Shopify catalog at '{url}' returned 0 products. Please verify your store URL and catalog visibility."
+                )
 
             for item in products_data:
                 title = item.get("title", "Shopify Product")
@@ -517,48 +491,44 @@ class CatalogService:
                 items_data = raw_payload
             elif sync_cfg and sync_cfg.endpoint_url:
                 try:
-                    with httpx.Client(timeout=5.0, follow_redirects=True) as client:
+                    with httpx.Client(timeout=10.0, follow_redirects=True) as client:
                         resp = client.get(sync_cfg.endpoint_url)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            if isinstance(data, list):
-                                items_data = data
-                            elif isinstance(data, dict):
-                                for k in ["products", "items", "data", "catalog"]:
-                                    if k in data and isinstance(data[k], list):
-                                        items_data = data[k]
-                                        break
-                except Exception:
-                    pass
+                        if resp.status_code != 200:
+                            raise MerchantConfigError(
+                                merchant_id,
+                                f"External REST catalog sync failed: Endpoint returned HTTP {resp.status_code} ({sync_cfg.endpoint_url})"
+                            )
+                        data = resp.json()
+                        if isinstance(data, list):
+                            items_data = data
+                        elif isinstance(data, dict):
+                            for k in ["products", "items", "data", "catalog"]:
+                                if k in data and isinstance(data[k], list):
+                                    items_data = data[k]
+                                    break
+                except httpx.RequestError as e:
+                    raise MerchantConfigError(
+                        merchant_id,
+                        f"External REST catalog sync failed: Unable to connect to '{sync_cfg.endpoint_url}' ({e})"
+                    )
+                except Exception as e:
+                    if isinstance(e, MerchantConfigError):
+                        raise e
+                    raise MerchantConfigError(
+                        merchant_id,
+                        f"External REST catalog sync failed: Invalid response from '{sync_cfg.endpoint_url}' ({e})"
+                    )
+            else:
+                raise MerchantConfigError(
+                    merchant_id,
+                    "Custom REST API sync requires a valid endpoint_url in store sync configuration."
+                )
 
             if not items_data:
-                m_prefix = merchant.merchant_id.upper()[:4]
-                items_data = [
-                    {
-                        sku_k: f"{m_prefix}-EXT-001",
-                        title_k: f"{merchant.merchant_name} Smart Wireless Earbuds Pro",
-                        price_k: 2999.0,
-                        inv_k: 60,
-                        desc_k: "Active noise cancellation with 32 hours total battery life.",
-                        cat_k: merchant.category,
-                    },
-                    {
-                        sku_k: f"{m_prefix}-EXT-002",
-                        title_k: f"{merchant.merchant_name} 65W GaN Fast Wall Charger",
-                        price_k: 1899.0,
-                        inv_k: 80,
-                        desc_k: "Compact ultra-fast charging with dual USB-C Power Delivery ports.",
-                        cat_k: merchant.category,
-                    },
-                    {
-                        sku_k: f"{m_prefix}-EXT-003",
-                        title_k: f"{merchant.merchant_name} 10000mAh Magnetic Power Bank",
-                        price_k: 2499.0,
-                        inv_k: 45,
-                        desc_k: "Wireless 15W magnetic snap-on charging with LED percentage display.",
-                        cat_k: merchant.category,
-                    },
-                ]
+                raise MerchantConfigError(
+                    merchant_id,
+                    f"External REST catalog at '{sync_cfg.endpoint_url}' returned 0 products or unrecognized JSON schema."
+                )
 
             for it in items_data:
                 meta = it.get("metadata", {})

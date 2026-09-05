@@ -11,6 +11,7 @@ from ...schemas.catalog import (
     MerchantListResponseSchema,
     CatalogSearchInputSchema,
 )
+from ...core.exceptions import MerchantConfigError
 from ...schemas.auth import MyStoreResponseSchema
 from .auth import get_current_user_id
 
@@ -33,7 +34,13 @@ def onboard_merchant(
             pass
 
     catalog_service = request.app.state.catalog_service
-    return catalog_service.onboard_merchant(body, owner_user_id=owner_user_id)
+    try:
+        return catalog_service.onboard_merchant(body, owner_user_id=owner_user_id)
+    except MerchantConfigError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e.message if hasattr(e, "message") else e),
+        )
 
 
 @router.post("/my-store/sync", response_model=CatalogSyncResponseSchema)
@@ -47,7 +54,13 @@ def sync_my_store(request: Request, authorization: Optional[str] = Header(None))
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No merchant store connected to your account.",
         )
-    return catalog_service.sync_merchant_catalog(merchant.merchant_id)
+    try:
+        return catalog_service.sync_merchant_catalog(merchant.merchant_id)
+    except MerchantConfigError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e.message if hasattr(e, "message") else e),
+        )
 
 
 @router.post("/{merchant_id}/sync", response_model=CatalogSyncResponseSchema)
@@ -59,7 +72,13 @@ def sync_merchant_catalog(
     """Triggers catalog inventory synchronization for a merchant."""
     catalog_service = request.app.state.catalog_service
     payload = trigger_dto.raw_payload if trigger_dto else None
-    return catalog_service.sync_merchant_catalog(merchant_id, raw_payload=payload)
+    try:
+        return catalog_service.sync_merchant_catalog(merchant_id, raw_payload=payload)
+    except MerchantConfigError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e.message if hasattr(e, "message") else e),
+        )
 
 
 @router.get("", response_model=MerchantListResponseSchema)

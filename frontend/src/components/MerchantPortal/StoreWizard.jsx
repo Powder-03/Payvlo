@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Store, ArrowRight, Sparkles } from 'lucide-react';
+import { Store, ArrowRight } from 'lucide-react';
 import { api } from '../../services/api';
 
 export function StoreWizard({ onStoreConnected }) {
@@ -10,8 +10,8 @@ export function StoreWizard({ onStoreConnected }) {
   const [maxDiscount, setMaxDiscount] = useState(15);
   const [txCap, setTxCap] = useState(25000);
   const [provider, setProvider] = useState('custom_api');
-  const [shopifyUrl, setShopifyUrl] = useState('https://urban-threads-sample.myshopify.com');
-  const [apiEndpoint, setApiEndpoint] = useState(`${window.location.origin}/api/v1/external-stores/muscleblaze/products.json`);
+  const [shopifyUrl, setShopifyUrl] = useState('');
+  const [apiEndpoint, setApiEndpoint] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,26 +23,6 @@ export function StoreWizard({ onStoreConnected }) {
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '');
     setStoreId(slug);
-  };
-
-  const applyPreset = (preset) => {
-    if (preset === 'muscleblaze') {
-      setStoreName('MuscleBlaze Performance');
-      setStoreId('muscleblaze');
-      setCategory('Health & Supplements');
-      setMaxDiscount(20);
-      setTxCap(25000);
-      setProvider('custom_api');
-      setApiEndpoint(`${window.location.origin}/api/v1/external-stores/muscleblaze/products.json`);
-    } else if (preset === 'beastlife') {
-      setStoreName('BeastLife Nutrition');
-      setStoreId('beastlife_d2c');
-      setCategory('Health & Supplements');
-      setMaxDiscount(15);
-      setTxCap(25000);
-      setProvider('custom_api');
-      setApiEndpoint(`${window.location.origin}/api/v1/external-stores/beastlife/products.json`);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -112,56 +92,8 @@ export function StoreWizard({ onStoreConnected }) {
           Connect Merchant Store
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--text-subtle)', marginTop: '4px' }}>
-          Set your spend guardrails and connect your catalog to activate agentic checkout.
+          Set your spend guardrails and connect your external catalog to activate agentic checkout.
         </p>
-      </div>
-
-      {/* Fast Setup Presets */}
-      <div style={{
-        background: 'rgba(0, 0, 0, 0.2)',
-        border: '1px solid var(--border)',
-        borderRadius: '9px',
-        padding: '12px 16px',
-        marginBottom: '20px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>
-          <Sparkles size={13} color="#34D399" />
-          <span>Quick 1-Click Store Presets:</span>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => applyPreset('muscleblaze')}
-            style={{
-              background: storeId === 'muscleblaze' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              fontSize: '12px',
-              fontWeight: 500,
-              color: 'var(--text-main)',
-              cursor: 'pointer'
-            }}
-          >
-            MuscleBlaze Performance
-          </button>
-          <button
-            type="button"
-            onClick={() => applyPreset('beastlife')}
-            style={{
-              background: storeId === 'beastlife_d2c' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              fontSize: '12px',
-              fontWeight: 500,
-              color: 'var(--text-main)',
-              cursor: 'pointer'
-            }}
-          >
-            BeastLife Nutrition
-          </button>
-        </div>
       </div>
 
       {error && (
@@ -184,7 +116,7 @@ export function StoreWizard({ onStoreConnected }) {
             />
           </div>
           <div className="form-group">
-            <label>Merchant Slug</label>
+            <label>Merchant Slug / ID</label>
             <input
               type="text"
               className="form-control"
@@ -276,17 +208,17 @@ export function StoreWizard({ onStoreConnected }) {
 
         {provider === 'custom_api' && (
           <div className="form-group">
-            <label>Catalog REST API Endpoint</label>
+            <label>External Catalog REST API Endpoint</label>
             <input
               type="url"
               className="form-control"
-              placeholder="https://payvlo.onrender.com/api/v1/external-stores/muscleblaze/products.json"
+              placeholder="https://your-external-api.com/products.json"
               value={apiEndpoint}
               onChange={(e) => setApiEndpoint(e.target.value)}
               required
             />
             <span style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-              Built-in live endpoints: <code>/api/v1/external-stores/muscleblaze/products.json</code> or <code>/api/v1/external-stores/beastlife/products.json</code>
+              Enter the full HTTPS URL to your external product catalog endpoint.
             </span>
           </div>
         )}
