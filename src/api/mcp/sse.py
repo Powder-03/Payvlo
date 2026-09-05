@@ -32,7 +32,11 @@ def process_rpc_message(app, body: Dict[str, Any], user_id: Optional[str] = None
             "id": msg_id,
             "result": {
                 "protocolVersion": "2024-11-05",
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "resources": {"subscribe": False, "listChanged": False},
+                    "prompts": {"listChanged": False},
+                },
                 "serverInfo": {
                     "name": f"Payvlo Commerce Gateway ({merchant_name})",
                     "version": "1.0.0",
@@ -40,7 +44,8 @@ def process_rpc_message(app, body: Dict[str, Any], user_id: Optional[str] = None
             },
         }, 200
 
-    elif method == "notifications/initialized":
+    elif method == "notifications/initialized" or (method and method.startswith("notifications/")):
+        # Notifications MUST NOT receive a response per JSON-RPC 2.0
         return None, 202
 
     elif method == "tools/list":
@@ -48,6 +53,27 @@ def process_rpc_message(app, body: Dict[str, Any], user_id: Optional[str] = None
             "jsonrpc": "2.0",
             "id": msg_id,
             "result": {"tools": get_mcp_tool_definitions()},
+        }, 200
+
+    elif method == "prompts/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {"prompts": []},
+        }, 200
+
+    elif method == "resources/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {"resources": []},
+        }, 200
+
+    elif method == "resources/templates/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {"resourceTemplates": []},
         }, 200
 
     elif method == "tools/call":
@@ -70,11 +96,29 @@ def process_rpc_message(app, body: Dict[str, Any], user_id: Optional[str] = None
     elif method == "ping":
         return {"jsonrpc": "2.0", "id": msg_id, "result": {}}, 200
 
+    # If it's a notification without id, ignore gracefully
+    if msg_id is None:
+        return None, 202
+
     return {
         "jsonrpc": "2.0",
         "id": msg_id,
         "error": {"code": -32601, "message": f"Method '{method}' not found"},
-    }, 404
+    }, 200
+
+
+@router.options("/sse")
+@router.options("/messages")
+async def mcp_cors_preflight():
+    """CORS preflight for web/desktop based MCP clients."""
+    return Response(
+        status_code=204,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 
 @router.get("/sse")
@@ -101,10 +145,15 @@ async def sse_endpoint(request: Request):
     if session_user:
         sse_user_sessions[session_id] = session_user
 
+    # Resolve absolute URL for strict MCP SDK clients (handles Cloudflare/Render reverse proxies)
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    base_url = f"{proto}://{host}".rstrip("/")
+    endpoint_url = f"{base_url}/messages?sessionId={session_id}"
+
     async def event_generator():
         try:
             # 1. Emit endpoint URL where client must POST messages
-            endpoint_url = f"/messages?sessionId={session_id}"
             yield f"event: endpoint\ndata: {endpoint_url}\n\n"
 
             # 2. Stream JSON-RPC messages and ping keep-alives
@@ -134,17 +183,26 @@ async def sse_endpoint(request: Request):
 
 
 @router.post("/messages")
-async def handle_mcp_messages(request: Request, sessionId: Optional[str] = None):
+async def handle_mcp_messages(
+    request: Request,
+    sessionId: Optional[str] = None,
+    session_id: Optional[str] = None,
+):
     """Official MCP JSON-RPC 2.0 Message Ingress with automatic session user context."""
+    active_session_id = sessionId or session_id or request.query_params.get("sessionId") or request.query_params.get("session_id")
     try:
         body = await request.json()
     except Exception:
         return Response(status_code=400, content="Invalid JSON")
 
+    # If active_session_id was not in query param, check body
+    if not active_session_id and isinstance(body, dict):
+        active_session_id = body.get("sessionId") or body.get("session_id")
+
     # Resolve authenticated user from session or header
     user_id = None
-    if sessionId and sessionId in sse_user_sessions:
-        user_id = sse_user_sessions[sessionId].get("user_id")
+    if active_session_id and active_session_id in sse_user_sessions:
+        user_id = sse_user_sessions[active_session_id].get("user_id")
 
     if not user_id:
         auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
@@ -159,11 +217,30 @@ async def handle_mcp_messages(request: Request, sessionId: Optional[str] = None)
     response, status_code = process_rpc_message(request.app, body, user_id=user_id)
 
     # If connected via active SSE session, stream message back on SSE channel
-    if sessionId and sessionId in sse_sessions and response:
-        await sse_sessions[sessionId].put(response)
-        return Response(status_code=202)
+    if active_session_id and active_session_id in sse_sessions and response:
+        await sse_sessions[active_session_id].put(response)
+        return Response(
+            status_code=202,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
 
     # Fallback to direct HTTP JSON response
     if response:
-        return JSONResponse(content=response, status_code=status_code)
-    return Response(status_code=status_code)
+        return JSONResponse(
+            content=response,
+            status_code=status_code,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
+    return Response(
+        status_code=status_code,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
