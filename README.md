@@ -1,5 +1,6 @@
 # 🌐 Payvlo — Universal Agentic Commerce Node (MCP + UAP / A2A)
 
+[![Razorpay Buildathon 2026](https://img.shields.io/badge/Razorpay%20Buildathon-Autonomous%20Commerce%20Track-0C2340?style=for-the-badge&logo=razorpay&logoColor=3395FF)](https://razorpay.com)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com)
 [![React + Vite](https://img.shields.io/badge/Frontend-React%20%7C%20Vite-61DAFB.svg)](https://vitejs.dev)
@@ -8,9 +9,8 @@
 [![Frontend Deploy](https://img.shields.io/badge/Vercel-Live-success.svg)](https://frontend-nine-ashy-72.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Payvlo** is a production-ready, serverless **Universal Agentic Commerce Gateway and Merchant Portal** designed to bridge autonomous AI agents with real-world commerce. Built with a clean, decoupled **Service-Based Modular Architecture** (FastAPI + SQLAlchemy) and a sleek React/Vite dashboard, Payvlo serves as a dual-interface translation layer between AI buyer agents and existing merchant infrastructure.
-
-Payvlo empowers **ANY merchant**—whether running on Shopify, custom REST APIs, or headless catalog endpoints—to safely open their store to tool-calling agents (**Claude Desktop**, **Antigravity IDE**, **Cursor**, AutoGPT) and autonomous peer-to-peer buyer agents without risking hallucinations, unauthorized discounts, or budget overruns.
+> 🏆 **Built for the Razorpay Buildathon: Autonomous Agentic Commerce Track**  
+> Payvlo turns **Razorpay** into the native settlement and financial trust layer for autonomous AI agents. By wrapping Razorpay Payment Links, Orders API, and Webhooks in deterministic mathematical guardrails, Payvlo enables AI buyer agents (**Claude Desktop**, **Antigravity IDE**, **Cursor**, AutoGPT) to discover, negotiate, and checkout across any merchant store without risking prompt injection, budget blowouts, or double-spending.
 
 ---
 
@@ -20,25 +20,80 @@ Payvlo empowers **ANY merchant**—whether running on Shopify, custom REST APIs,
 | :--- | :--- | :--- |
 | 🖥️ **Merchant React Portal** | **Vercel** | [https://frontend-nine-ashy-72.vercel.app/](https://frontend-nine-ashy-72.vercel.app/) |
 | ⚡ **Backend API & Swagger Docs** | **Render** | [https://payvlo.onrender.com/docs#/](https://payvlo.onrender.com/docs#/) |
+| 💳 **Razorpay Rails Simulator & Orders** | **Render / Razorpay** | Hosted Payment Links (`https://rzp.io/...`) & Sandbox |
 | 🩺 **System Healthcheck** | **Render** | [https://payvlo.onrender.com/healthz](https://payvlo.onrender.com/healthz) |
-| 🤖 **FastMCP SSE Transport** | **Render** | [https://payvlo.onrender.com/sse](https://payvlo.onrender.com/sse) |
+| 🤖 **FastMCP Dual-Transport Endpoint** | **Render** | [https://payvlo.onrender.com/sse](https://payvlo.onrender.com/sse) |
 | 🪪 **UAP Agent Capability Card** | **Render** | [https://payvlo.onrender.com/.well-known/agent.json](https://payvlo.onrender.com/.well-known/agent.json) |
 
 ---
 
+## ⏱️ Evaluator Quickstart (Test Drive in 60 Seconds)
+
+Reviewing this submission? Here are 3 instant ways to test the live system:
+
+1. **Test the Merchant Portal (No Setup Required):**
+   * Visit [https://frontend-nine-ashy-72.vercel.app/](https://frontend-nine-ashy-72.vercel.app/).
+   * View live merchant stores (**HyugaLife Wellness**, **Avvatar Nutrition**), inspect spend ceilings, discount caps, live stock counts, and recent orders.
+2. **Execute a Prompt Injection Defense Test (Interactive API):**
+   * Open the [Live Swagger UI](https://payvlo.onrender.com/docs#/Model%20Context%20Protocol/dispatch_mcp_tool_mcp_call_post).
+   * Call `/mcp/call` with tool `request_price_quote`, requesting an unauthorized `90%` discount on HyugaLife.
+   * Notice the mathematical clamp: Payvlo clamps it to the merchant's exact `15.0%` ceiling, completely immune to prompt jailbreaks!
+3. **Connect Your Favorite AI Agent via MCP:**
+   * Point **Claude Desktop**, **Antigravity IDE**, or **Cursor** to `https://payvlo.onrender.com/sse`.
+   * Ask: *"Find creatine on HyugaLife, negotiate the best discount, and buy it under ₹5,000."*
+   * Watch the agent find the product, receive the clamped quote, execute bounded checkout, and return an official **Razorpay payment link**!
+
+---
+
 ## 📑 Table of Contents
-1. [Core Features & Value Proposition](#-core-features)
-2. [System Architecture](#-system-architecture)
-3. [Dual Protocol Gateway (MCP + UAP/A2A)](#-dual-protocol-gateway)
-4. [External Catalog APIs (Avvatar & HyugaLife)](#-external-catalog-apis-avvatar--hyugalife)
-5. [Deterministic Guardrails & Gatekeeper Security](#-deterministic-guardrails--security)
-6. [Dynamic Merchant Onboarding & Catalog Sync](#-dynamic-merchant-onboarding--catalog-sync)
-7. [MCP Tool Reference](#-mcp-tool-reference)
-8. [REST API Reference](#-rest-api-reference)
-9. [Local Development & Docker Setup](#-local-development--docker-setup)
-10. [Environment Variables Reference](#-environment-variables-reference)
-11. [Automated E2E Test Suite](#-automated-e2e-test-suite)
-12. [Client Configuration (Claude / Antigravity / Cursor)](#-client-configuration)
+1. [The Core Problem & The Razorpay Solution](#-the-core-problem--the-razorpay-solution)
+2. [Core Features & Value Proposition](#-core-features)
+3. [System Architecture](#-system-architecture)
+4. [💳 Razorpay Payment Rails: Powering Agentic Settlement](#-razorpay-payment-rails-powering-agentic-settlement)
+5. [Dual Protocol Gateway (MCP + UAP/A2A)](#-dual-protocol-gateway)
+6. [External Catalog APIs (Avvatar & HyugaLife)](#-external-catalog-apis-avvatar--hyugalife)
+7. [Deterministic Guardrails & Gatekeeper Security](#-deterministic-guardrails--security)
+8. [Dynamic Merchant Onboarding & Catalog Sync](#-dynamic-merchant-onboarding--catalog-sync)
+9. [MCP Tool Reference](#-mcp-tool-reference)
+10. [REST API Reference](#-rest-api-reference)
+11. [Local Development & Docker Setup](#-local-development--docker-setup)
+12. [Environment Variables Reference](#-environment-variables-reference)
+13. [Automated E2E Test Suite (19 Scenarios)](#-automated-e2e-test-suite)
+14. [Client Configuration (Claude / Antigravity / Cursor)](#-client-configuration)
+
+---
+
+## 🎯 The Core Problem & The Razorpay Solution
+
+```
+                            THE AGENTIC COMMERCE DILEMMA
+                            
+    AI Buyer Agents                                             Merchant Infrastructure
+  (Claude / Antigravity)                                       (Shopify / D2C Brands)
+         │                                                               │
+         │  ❌ Problem 1: Fragmented Protocol (500+ Brand MCP Servers)   │
+         │  ❌ Problem 2: LLMs Hallucinate Numbers & Exceed Budgets      │
+         │  ❌ Problem 3: Prompt Injections Fake "CEO 90% Discounts"     │
+         │  ❌ Problem 4: No Financial Rails for Autonomous Agents       │
+         ▼                                                               ▼
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │                 PAYVLO ZERO-TRUST AGENTIC COMMERCE GATEWAY                  │
+  │                                                                             │
+  │   • One Universal MCP/UAP Ingress  • Deterministic Discount Clamping Math  │
+  │   • Sub-ms Redis Lua Spend Caps    • 24-Hour Idempotency Replay Defense     │
+  └──────────────────────────────────────┬──────────────────────────────────────┘
+                                         │
+                                         ▼
+                      ┌──────────────────────────────────────┐
+                      │        💳 RAZORPAY PAYMENT RAILS     │
+                      │  • Instant Hosted Payment Links     │
+                      │  • Subunit Paise Accuracy (No Flops) │
+                      │  • Cryptographic Webhook Settlement  │
+                      │  • Universal Indian Rails (UPI/Cards)│
+                      └──────────────────────────────────────┘
+```
+
+By placing **Razorpay** at the foundation of autonomous checkout, Payvlo solves the trust deficit: agents can autonomously search and negotiate, but financial authorization and final settlement are anchored on Razorpay's trusted, compliant payment rails.
 
 ---
 
@@ -65,6 +120,124 @@ Payvlo empowers **ANY merchant**—whether running on Shopify, custom REST APIs,
 ## 🏛️ System Architecture
 
 Payvlo follows a clean, decoupled **Service-Based Modular Architecture** separating HTTP transport, domain business logic, cryptographic gatekeeping, and persistence.
+
+### High-Level System Architecture
+
+```mermaid
+flowchart TB
+    subgraph CLIENTS["🤖 AI Agent & User Clients"]
+        direction LR
+        A1["Antigravity IDE"]
+        A2["Claude Desktop"]
+        A3["Cursor / AutoGPT"]
+        A4["Payvlo Merchant Portal (React 18 + Vite)"]
+    end
+
+    subgraph INGRESS["🌐 Protocol Ingress & Gateway Layer (FastAPI)"]
+        direction TB
+        P_MCP["MCP Dual-Transport Endpoint<br/>(/sse - GET/POST Streamable HTTP)"]
+        P_UAP["UAP Discovery & Settlement<br/>(/.well-known/agent.json, /uap/v1/*)"]
+        P_REST["Merchant & Store REST API<br/>(/api/v1/merchants, /api/v1/auth)"]
+        P_WH["Real-time Webhook Ingress<br/>(/api/v1/webhooks)"]
+    end
+
+    subgraph SECURITY["🛡️ Zero-Trust Guardrail Engine"]
+        direction TB
+        G_CLAMP["Deterministic Discount Clamper<br/>min(req, prod_max, merch_max)"]
+        G_LUA["Sub-Millisecond Atomic Spend Gate<br/>Upstash Redis Lua Script"]
+        G_IDEM["24h Distributed Idempotency Lock<br/>Double-Charge Replay Shield"]
+        G_PII["Privacy Ledger & PII Redactor<br/>SHA-256 Pseudonymization"]
+    end
+
+    subgraph SERVICES["⚙️ Core Domain Services Layer"]
+        direction TB
+        S_QUOTE["QuoteService<br/>Bound 15-Min Quotations"]
+        S_CHECKOUT["CheckoutService<br/>Pessimistic Locking & Settlement"]
+        S_CATALOG["CatalogService<br/>Product Ingestion & Semantic Search"]
+        S_GATE["GatekeeperService<br/>Spend Cap & Rate Governor"]
+        S_PAY["PaymentService<br/>Razorpay Rails & Webhook Verifier"]
+    end
+
+    subgraph STORAGE["🗄️ Persistence & Distributed Cache"]
+        direction LR
+        DB[("PostgreSQL (Neon Cloud)<br/>SQLAlchemy ORM")]
+        REDIS[("Upstash Redis<br/>Lua Scripts & Key-Value Caching")]
+    end
+
+    subgraph EGRESS["🔌 Merchant & Payment Egress Rails"]
+        direction LR
+        E_PAY["Razorpay Payment Gateway"]
+        E_D2C["Live D2C Merchant Catalogs<br/>(HyugaLife, Avvatar, Shopify)"]
+        E_NOTIF["Merchant Webhook Notifications"]
+    end
+
+    %% Client Connections
+    A1 -->|"Streamable HTTP / JSON-RPC"| P_MCP
+    A2 -->|"Classic SSE Transport"| P_MCP
+    A3 -->|"A2A Protocol"| P_UAP
+    A4 -->|"REST API / JWT"| P_REST
+
+    %% Ingress to Services
+    P_MCP --> S_CATALOG
+    P_MCP --> S_QUOTE
+    P_MCP --> S_CHECKOUT
+    P_UAP --> S_QUOTE
+    P_UAP --> S_CHECKOUT
+    P_REST --> S_CATALOG
+    P_WH --> S_PAY
+
+    %% Services to Guardrails
+    S_QUOTE --> G_CLAMP
+    S_CHECKOUT --> G_LUA
+    S_CHECKOUT --> G_IDEM
+    S_CHECKOUT --> G_PII
+
+    %% Services to Storage & Egress
+    G_LUA <-->|"Atomic Lua Check"| REDIS
+    G_IDEM <-->|"Key Expiry Lock"| REDIS
+    S_CHECKOUT -->|"Pessimistic Inventory Update"| DB
+    S_CATALOG -->|"Catalog Indexing & Search"| DB
+    S_CATALOG -->|"Fetch Live Product Feeds"| E_D2C
+    S_CHECKOUT -->|"Payment Session & Order Auth"| E_PAY
+    S_CHECKOUT -->|"Order Event Dispatch"| E_NOTIF
+```
+
+---
+
+### Autonomous Bounded Checkout Transaction Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Agent as 🤖 AI Agent (Antigravity)
+    participant Gateway as 🌐 Payvlo MCP Gateway (/sse)
+    participant Quote as 📐 Quote Engine
+    participant Guard as 🛡️ Redis Lua Guardrail
+    participant DB as 🗄️ Neon PostgreSQL
+    participant Razorpay as 💳 Razorpay Rails
+
+    Agent->>Gateway: search_store_catalog(query="creatine", merchant_id="hyugalife")
+    Gateway-->>Agent: Returns verified product specs, live stock & max discount caps
+
+    Agent->>Gateway: request_price_quote(items=[...], requested_discount=90%)
+    Gateway->>Quote: Enforce Deterministic Clamping
+    Note over Quote: min(90%, merchant_cap: 15%) = 15%<br/>Prompt injection neutralized!
+    Quote->>DB: Store bound 15-minute Quote Lock
+    Quote-->>Agent: Return Quote (Original: ₹4,169 -> Clamped: ₹3,752.10)
+
+    Agent->>Gateway: execute_bounded_checkout(quote_id, max_spend_ceiling=5000)
+    Gateway->>Guard: Execute atomic Lua script (Idempotency + Spend Cap Check)
+    Guard-->>Gateway: Cap approved (< 2ms)
+    Gateway->>DB: SELECT FOR UPDATE (Pessimistic stock reservation)
+    Gateway->>Razorpay: Mint Payment Link & Session
+    Gateway->>DB: Persist Order + SHA-256 Redacted Audit Ledger
+    Gateway-->>Agent: Return Order Confirmation & Payment URL
+```
+
+---
+
+<details>
+<summary><b>View Text-Based Architecture Schematic</b></summary>
 
 ```
                               ┌──────────────────────────────────────────────┐
@@ -117,6 +290,8 @@ Payvlo follows a clean, decoupled **Service-Based Modular Architecture** separat
      │ SQLAlchemy Models │  │ Atomic Lua Caps   │  │ Payment Simulator │  │ Avvatar/HyugaLife │
      └───────────────────┘  └───────────────────┘  └───────────────────┘  └───────────────────┘
 ```
+
+</details>
 
 ### Directory Structure
 
@@ -181,6 +356,80 @@ payvlo/
 ├── Dockerfile                          # Multi-Stage Production Container
 ├── render.yaml                         # Render Infrastructure as Code Blueprint
 └── requirements.txt                    # Production Dependencies
+```
+
+---
+
+## 💳 Razorpay Payment Rails: Powering Agentic Settlement
+
+In an autonomous agent economy, **payment cannot rely on handing raw credit cards or API secrets to non-deterministic LLMs**. Payvlo solves this by making **Razorpay** the deterministic settlement bedrock of the platform.
+
+```
+┌─────────────────────────┐
+│     AI BUYER AGENT      │  (Claude / Antigravity / Cursor)
+│  "Buy HyugaLife Kit"    │
+└────────────┬────────────┘
+             │ 1. execute_bounded_checkout(quote_id, max_spend_ceiling)
+             ▼
+┌─────────────────────────┐
+│  PAYVLO CORE ENGINE     │  • Validates Locked 15-Minute Quote
+│  (src/services/         │  • Executes Atomic Lua Spend Gate (< 2ms)
+│   checkout_service.py)  │  • Locks Inventory (SQL SELECT ... FOR UPDATE)
+└────────────┬────────────┘
+             │ 2. payment_service.create_order(...)
+             ▼
+┌─────────────────────────┐
+│  RAZORPAY PAYMENT RAILS │
+│  (src/services/         │
+│   payment_service.py)   │
+└────────────┬────────────┘
+             │
+             ├──► 3a. Razorpay Payment Links API (`payment_link.create`)
+             │        • Generates secure, instant URL (`https://rzp.io/...`)
+             │        • Embedded customer metadata (name, contact, email)
+             │        • Returned to Agent -> User taps to pay via UPI/Card
+             │
+             ├──► 3b. Razorpay Standard Orders API (`order.create`)
+             │        • Exact subunit (paise) integer math (`amount * 100`)
+             │        • Unique internal receipt anchor (`receipt=order_id`)
+             │        • Automated payment capture (`payment_capture=1`)
+             │
+             └──► 3c. Compensating Rollback Guarantee
+                      • If Razorpay order fails, Payvlo triggers atomic rollback:
+                        - Restores reserved stock (`update_inventory`)
+                        - Releases spend ceiling (`release_spend`)
+```
+
+### 1. Razorpay Integration Breakdown
+
+| Feature | Implementation | Business & Security Value |
+| :--- | :--- | :--- |
+| **Instant Hosted Payment Links** | `razorpay.payment_link.create()` | Generates cryptographically secure `short_url` (`https://rzp.io/...`). AI agents return this link so humans can authorize with 1-click UPI without sharing credentials with the LLM. |
+| **Subunit Integer Accuracy** | `amount_in_paise = int(round(amount * 100))` | Prevents floating-point rounding errors during cart discounts and tax computations. |
+| **Receipt-Bound Order Anchoring** | `receipt: order_id` in order payload | Directly binds the Razorpay transaction receipt to Payvlo's internal database UUID. |
+| **Atomic Compensating Rollback** | `checkout_service.py:284-307` | Zero stranded reservations: if the payment rail throws an error, reserved inventory and spend caps are restored in milliseconds. |
+| **Dual-Mode Simulator & Live Keys** | `PaymentService(key_id, key_secret, is_sandbox)` | Automatically detects live Razorpay credentials or falls back to an embedded test-rail simulator for automated CI/CD and offline evaluation. |
+| **HMAC SHA-256 Webhook Settlement** | `POST /api/v1/webhooks/razorpay` | Asynchronously processes `payment.captured` events with cryptographic signature verification (`razorpay.utility.Utility.verify_webhook_signature`). |
+
+### 2. Live Transaction Payload Example
+
+When an AI agent executes checkout, Payvlo invokes the Razorpay rail and returns:
+
+```json
+{
+  "success": true,
+  "order_id": "ord_f7715e002a80",
+  "payment_rail": "RAZORPAY",
+  "payment_rail_id": "order_NXgP8qL9z1aB2c",
+  "payment_link": "https://rzp.io/i/payvlo_NXgP8q",
+  "payment_status": "created",
+  "currency": "INR",
+  "amount_paid": 3752.10,
+  "amount_in_subunit": 375210,
+  "merchant_id": "hyugalife",
+  "receipt": "ord_f7715e002a80",
+  "timestamp": "2026-09-05T21:40:00Z"
+}
 ```
 
 ---
@@ -361,7 +610,7 @@ Locks in a legally binding price quotation with deterministic discount calculati
 ```
 
 ### 3. `execute_bounded_checkout`
-Executes zero-trust checkout against a locked quote with strict budget constraints.
+Executes zero-trust checkout against a locked quote with strict budget constraints and settles via **Razorpay Rails**.
 ```json
 {
   "name": "execute_bounded_checkout",
@@ -375,6 +624,20 @@ Executes zero-trust checkout against a locked quote with strict budget constrain
     "fulfillment_type": "DELIVERY",
     "fulfillment_notes": "Deliver HyugaLife kit to home address"
   }
+}
+```
+**Razorpay Response Output:**
+```json
+{
+  "success": true,
+  "order_id": "ord_f7715e002a80",
+  "payment_rail": "RAZORPAY",
+  "payment_rail_id": "order_NXgP8qL9z1aB2c",
+  "payment_link": "https://rzp.io/i/payvlo_NXgP8q",
+  "payment_status": "created",
+  "currency": "INR",
+  "amount_paid": 3752.10,
+  "receipt": "ord_f7715e002a80"
 }
 ```
 
