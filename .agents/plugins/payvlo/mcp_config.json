@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "payvlo-commerce": {
+      "serverUrl": "https://payvlo.onrender.com/sse"
+    }
+  }
+}

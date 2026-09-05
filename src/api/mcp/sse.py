@@ -17,6 +17,7 @@ router = APIRouter(tags=["MCP Interface"])
 
 sse_sessions: Dict[str, asyncio.Queue] = {}
 sse_user_sessions: Dict[str, Dict[str, Any]] = {}
+streamable_http_sessions: Dict[str, Dict[str, Any]] = {}
 
 
 def process_rpc_message(app, body: Dict[str, Any], user_id: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], int]:
@@ -115,8 +116,9 @@ async def mcp_cors_preflight():
         status_code=204,
         headers={
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "Mcp-Session-Id",
         },
     )
 
@@ -180,6 +182,104 @@ async def sse_endpoint(request: Request):
             "Access-Control-Allow-Headers": "*",
         },
     )
+
+
+@router.post("/sse")
+async def streamable_http_endpoint(request: Request):
+    """MCP Streamable HTTP Transport – accepts POST JSON-RPC 2.0 messages directly.
+
+    This allows modern MCP clients (Antigravity, etc.) that use the `serverUrl`
+    config key to communicate without establishing an SSE session first.
+    """
+    # ── Auth ──────────────────────────────────────────────────────────────
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    token = request.query_params.get("token") or request.query_params.get("api_key")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+
+    user_id: Optional[str] = None
+    if token:
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
+
+    # ── Parse body ────────────────────────────────────────────────────────
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
+        )
+
+    # ── Session management ────────────────────────────────────────────────
+    session_id = request.headers.get("mcp-session-id")
+
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Expose-Headers": "Mcp-Session-Id",
+    }
+
+    # ── Batch request (array of JSON-RPC messages) ────────────────────────
+    if isinstance(body, list):
+        responses = []
+        for msg in body:
+            resp, _ = process_rpc_message(request.app, msg, user_id=user_id)
+            if resp is not None:
+                responses.append(resp)
+
+        if not session_id:
+            session_id = uuid.uuid4().hex
+            streamable_http_sessions[session_id] = {"user_id": user_id}
+
+        headers = {**cors_headers, "Mcp-Session-Id": session_id}
+
+        if not responses:
+            return Response(status_code=202, headers=headers)
+        return JSONResponse(
+            content=responses if len(responses) > 1 else responses[0],
+            headers=headers,
+        )
+
+    # ── Single message ────────────────────────────────────────────────────
+    method = body.get("method") if isinstance(body, dict) else None
+
+    if method == "initialize":
+        session_id = uuid.uuid4().hex
+        streamable_http_sessions[session_id] = {"user_id": user_id}
+    elif not session_id:
+        session_id = uuid.uuid4().hex
+        streamable_http_sessions[session_id] = {"user_id": user_id}
+
+    response, status_code = process_rpc_message(request.app, body, user_id=user_id)
+    headers = {**cors_headers, "Mcp-Session-Id": session_id}
+
+    if response is None:
+        return Response(status_code=status_code, headers=headers)
+
+    # If client prefers SSE streaming (non-initialize requests)
+    accept = request.headers.get("accept", "")
+    if "text/event-stream" in accept and method != "initialize":
+        async def single_event():
+            yield f"event: message\ndata: {json.dumps(response)}\n\n"
+        return StreamingResponse(
+            single_event(),
+            media_type="text/event-stream",
+            headers={**headers, "Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
+
+    return JSONResponse(content=response, status_code=status_code, headers=headers)
+
+
+@router.delete("/sse")
+async def streamable_http_session_terminate(request: Request):
+    """Terminate a Streamable HTTP session."""
+    session_id = request.headers.get("mcp-session-id")
+    if session_id and session_id in streamable_http_sessions:
+        streamable_http_sessions.pop(session_id, None)
+        return Response(status_code=200)
+    return Response(status_code=404)
 
 
 @router.post("/messages")
