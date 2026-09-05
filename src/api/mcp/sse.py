@@ -246,10 +246,16 @@ async def streamable_http_endpoint(request: Request):
     method = body.get("method") if isinstance(body, dict) else None
 
     if method == "initialize":
-        session_id = uuid.uuid4().hex
-        streamable_http_sessions[session_id] = {"user_id": user_id}
-    elif not session_id:
-        session_id = uuid.uuid4().hex
+        # Reuse the client's session ID if it already exists in our store
+        # (handles re-initialization / retries). Otherwise mint a new one.
+        if session_id and session_id in streamable_http_sessions:
+            streamable_http_sessions[session_id]["user_id"] = user_id
+        else:
+            session_id = uuid.uuid4().hex
+            streamable_http_sessions[session_id] = {"user_id": user_id}
+    elif not session_id or session_id not in streamable_http_sessions:
+        # Unknown/missing session on a non-init request → create one to be lenient
+        session_id = session_id or uuid.uuid4().hex
         streamable_http_sessions[session_id] = {"user_id": user_id}
 
     response, status_code = process_rpc_message(request.app, body, user_id=user_id)
