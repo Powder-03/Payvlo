@@ -115,13 +115,30 @@ def get_my_store(request: Request, authorization: Optional[str] = Header(None)):
         metadata=json.loads(merchant.metadata_json or "{}"),
     )
 
+    orders = catalog_service.get_orders_by_merchant(merchant.merchant_id)
+
     return MyStoreResponseSchema(
         has_store=True,
         merchant=merchant_profile,
         total_products=products_res.total_count,
         agent_card_url=agent_card_url,
         products=products_res.products,
+        orders=orders,
     )
+
+
+@router.get("/my-store/orders")
+def get_my_store_orders(request: Request, authorization: Optional[str] = Header(None)):
+    """Retrieves all orders received by the current authenticated merchant store."""
+    user_id = get_current_user_id(authorization)
+    catalog_service = request.app.state.catalog_service
+    merchant = catalog_service.get_merchant_by_owner(user_id)
+    if not merchant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No merchant store connected to your account.",
+        )
+    return catalog_service.get_orders_by_merchant(merchant.merchant_id)
 
 
 @router.get("/{merchant_id}")

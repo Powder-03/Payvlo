@@ -117,6 +117,7 @@ class MyStoreResponseSchema(BaseModel):
     total_products: int = 0
     agent_card_url: Optional[str] = None
     products: List[ProductSchema] = Field(default_factory=list)
+    orders: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 MyStoreResponseDTO = MyStoreResponseSchema

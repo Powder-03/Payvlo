@@ -70,6 +70,46 @@ class CatalogService:
                 order.shipping_address = None
             return order
 
+    def get_orders_by_merchant(self, merchant_id: str, limit: int = 50):
+        from ..models.order import OrderModel
+        with self.session_factory() as session:
+            orders = (
+                session.query(OrderModel)
+                .filter_by(merchant_id=merchant_id)
+                .order_by(OrderModel.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+            result = []
+            for o in orders:
+                items = []
+                try:
+                    items = json.loads(o.items_json or "[]")
+                except Exception:
+                    pass
+                shipping = {}
+                try:
+                    shipping = json.loads(o.shipping_address_json or "{}")
+                except Exception:
+                    pass
+                result.append({
+                    "order_id": o.order_id,
+                    "idempotency_key": o.idempotency_key,
+                    "merchant_id": o.merchant_id,
+                    "user_id": o.user_id,
+                    "quote_id": o.quote_id,
+                    "items": items,
+                    "final_amount": o.final_amount,
+                    "currency": o.currency,
+                    "shipping_address": shipping,
+                    "payment_rail_id": o.payment_rail_id,
+                    "payment_status": o.payment_status,
+                    "payment_link": o.payment_link,
+                    "audit_id": o.audit_id,
+                    "created_at": o.created_at,
+                })
+            return result
+
     def search_products(self, query: CatalogSearchInputSchema) -> CatalogSearchResultSchema:
         mid = query.merchant_id or self.default_merchant_id
         with self.session_factory() as session:

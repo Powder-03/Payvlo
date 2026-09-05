@@ -99,6 +99,14 @@ export const api = {
     return res.json();
   },
 
+  async getMyStoreOrders() {
+    const res = await fetch(`${API_BASE}/api/v1/merchants/my-store/orders`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch store orders');
+    return res.json();
+  },
+
   async applyStore(storeData) {
     const res = await fetch(`${API_BASE}/api/v1/merchants/apply`, {
       method: 'POST',
